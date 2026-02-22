@@ -4,12 +4,13 @@ App mobile de gestão financeira pessoal com IA integrada.
 
 ## Stack
 
-- **Flutter** 3.x + Dart 3.x
+- **Flutter** 3.41+ / Dart 3.11+
 - **Riverpod** (state management)
 - **GoRouter** (navegação)
 - **Supabase** (autenticação)
 - **Dio + Retrofit** (HTTP client)
 - **Freezed** (imutabilidade e serialização)
+- **Hive CE** (cache local)
 - **Firebase Messaging** (push notifications)
 - **fl_chart** (gráficos)
 
@@ -60,8 +61,11 @@ feature/
 
 ### 1. Pré-requisitos
 
-- Flutter SDK ≥ 3.4.0
-- Dart SDK ≥ 3.4.0
+- **Flutter SDK** >= 3.41.0
+- **Dart SDK** >= 3.11.0
+- **Java JDK** >= 17 (para build Android)
+- Conta no [Supabase](https://supabase.com/) (para autenticação)
+- Projeto no [Firebase](https://console.firebase.google.com/) (para push notifications)
 
 ### 2. Clone e instale dependências
 
@@ -75,10 +79,17 @@ flutter pub get
 
 ```bash
 cp .env.example .env
-# Edite o .env com suas credenciais
 ```
 
-### 4. Configure Firebase
+Edite o `.env` com suas credenciais:
+
+| Variável | Descrição |
+|---|---|
+| `SUPABASE_URL` | URL do seu projeto Supabase (ex: `https://xxx.supabase.co`) |
+| `SUPABASE_ANON_KEY` | Chave anônima do Supabase |
+| `API_BASE_URL` | URL base da API REST (ex: `http://10.0.2.2:8000/api/v1` para emulador Android) |
+
+### 4. Configure Firebase (opcional para push notifications)
 
 ```bash
 # Instale o FlutterFire CLI
@@ -102,15 +113,23 @@ dart run build_runner build --delete-conflicting-outputs
 flutter run
 ```
 
+### Setup rápido (script)
+
+Você pode usar o script automatizado:
+
+```bash
+./scripts/setup.sh
+```
+
 ## Funcionalidades implementadas (Etapa 2)
 
-- ✅ Listagem de contas por status (pendentes, vencidas, pagas)
-- ✅ Card de conta com indicador visual de status
-- ✅ Detalhe da conta em bottom sheet
-- ✅ Marcar conta como paga (com criação automática de transação no backend)
-- ✅ Dashboard com resumo e próximas contas
-- ✅ Pull-to-refresh
-- ✅ Login com Supabase
+- Listagem de contas por status (pendentes, vencidas, pagas)
+- Card de conta com indicador visual de status
+- Detalhe da conta em bottom sheet
+- Marcar conta como paga (com criação automática de transação no backend)
+- Dashboard com resumo e próximas contas
+- Pull-to-refresh
+- Login com Supabase
 
 ## Próximas etapas
 

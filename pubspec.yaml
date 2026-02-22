@@ -19,13 +19,14 @@ dependencies:
 
   # Network
   dio: ^5.7.0
-  retrofit: ^4.1.0
+  retrofit: '>=4.1.0 <4.9.0'
 
   # Supabase (Auth)
   supabase_flutter: ^2.6.0
 
   # Local Storage (cache)
-  hive_flutter: ^1.1.0
+  hive_ce: ^2.19.3
+  hive_ce_flutter: ^2.3.4
 
   # UI Components
   flutter_svg: ^2.0.10+1
@@ -36,12 +37,12 @@ dependencies:
   table_calendar: ^3.1.2      # calendar for bills
 
   # Forms & Validation
-  flutter_form_builder: ^9.4.0
-  form_builder_validators: ^10.0.1
+  flutter_form_builder: ^10.3.0
+  form_builder_validators: ^11.3.0
 
   # Currency input
   currency_text_input_formatter: ^2.1.1
-  intl: ^0.19.0
+  intl: ^0.20.2
 
   # Push Notifications
   firebase_core: ^3.4.1
@@ -65,11 +66,11 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^4.0.0
   build_runner: ^2.4.12
-  freezed: ^2.5.7
+  freezed: ^2.5.8
   json_serializable: ^6.8.0
-  retrofit_generator: ^8.1.0
-  riverpod_generator: ^2.4.3
-  hive_generator: ^2.0.1
+  retrofit_generator: ^9.1.8
+  riverpod_generator: ^2.6.4
+  hive_ce_generator: ^1.9.2
   mocktail: ^1.0.4
 
 flutter:
