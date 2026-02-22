@@ -1,0 +1,80 @@
+name: financeapp
+description: Gestão financeira pessoal inteligente com IA.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State Management
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+
+  # Navigation
+  go_router: ^14.2.7
+
+  # Network
+  dio: ^5.7.0
+  retrofit: ^4.1.0
+
+  # Supabase (Auth)
+  supabase_flutter: ^2.6.0
+
+  # Local Storage (cache)
+  hive_flutter: ^1.1.0
+
+  # UI Components
+  flutter_svg: ^2.0.10+1
+  cached_network_image: ^3.4.1
+  shimmer: ^3.0.0
+  lottie: ^3.1.2
+  fl_chart: ^0.69.0          # charts
+  table_calendar: ^3.1.2      # calendar for bills
+
+  # Forms & Validation
+  flutter_form_builder: ^9.4.0
+  form_builder_validators: ^10.0.1
+
+  # Currency input
+  currency_text_input_formatter: ^2.1.1
+  intl: ^0.19.0
+
+  # Push Notifications
+  firebase_core: ^3.4.1
+  firebase_messaging: ^15.1.2
+  flutter_local_notifications: ^17.2.2
+
+  # Utils
+  freezed_annotation: ^2.4.4
+  json_annotation: ^4.9.0
+  equatable: ^2.0.7
+  dartz: ^0.10.1             # Either for error handling
+  get_it: ^8.0.2             # dependency injection
+  logger: ^2.4.0
+  flutter_dotenv: ^5.2.1
+  path_provider: ^2.1.4
+  share_plus: ^10.0.2
+  url_launcher: ^6.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  build_runner: ^2.4.12
+  freezed: ^2.5.7
+  json_serializable: ^6.8.0
+  retrofit_generator: ^8.1.0
+  riverpod_generator: ^2.4.3
+  hive_generator: ^2.0.1
+  mocktail: ^1.0.4
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/icons/
+    - .env
