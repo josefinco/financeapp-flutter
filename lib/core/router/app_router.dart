@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../main.dart';
 import '../../features/bills/presentation/pages/bills_page.dart';
 import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
@@ -15,6 +16,9 @@ GoRouter appRouter(AppRouterRef ref) {
   return GoRouter(
     initialLocation: '/',
     redirect: (context, state) {
+      // Skip auth check in demo mode
+      if (!isBackendAvailable) return null;
+
       final session = Supabase.instance.client.auth.currentSession;
       final isAuth = session != null;
       final isLoginRoute = state.matchedLocation == '/login';
@@ -29,7 +33,9 @@ GoRouter appRouter(AppRouterRef ref) {
         routes: [
           GoRoute(path: '/', builder: (_, __) => const DashboardPage()),
           GoRoute(path: '/bills', builder: (_, __) => const BillsPage()),
-          // future routes: /transactions, /reports, /ai-chat
+          GoRoute(path: '/transactions', builder: (_, __) => const _ComingSoonPage(title: 'Lançamentos')),
+          GoRoute(path: '/reports', builder: (_, __) => const _ComingSoonPage(title: 'Relatórios')),
+          GoRoute(path: '/ai-chat', builder: (_, __) => const _ComingSoonPage(title: 'Assistente IA')),
         ],
       ),
       GoRoute(path: '/login', builder: (_, __) => const LoginPage()),
@@ -81,5 +87,34 @@ class MainShell extends StatelessWidget {
       case 3: context.go('/reports');
       case 4: context.go('/ai-chat');
     }
+  }
+}
+
+// ─── Placeholder para rotas não implementadas no backend ─────────────────────
+
+class _ComingSoonPage extends StatelessWidget {
+  final String title;
+  const _ComingSoonPage({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.construction_outlined, size: 72, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            Text(title, style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: 8),
+            Text(
+              'Em desenvolvimento — backend em breve',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

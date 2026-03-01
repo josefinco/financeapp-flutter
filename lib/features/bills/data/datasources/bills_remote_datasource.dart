@@ -65,6 +65,8 @@ class BillListResponse {
         total: json['total'],
         pendingCount: json['pending_count'],
         overdueCount: json['overdue_count'],
-        totalPendingAmount: (json['total_pending_amount'] as num).toDouble(),
+        totalPendingAmount: json['total_pending_amount'] is String
+            ? double.parse(json['total_pending_amount'])
+            : (json['total_pending_amount'] as num).toDouble(),
       );
 }
