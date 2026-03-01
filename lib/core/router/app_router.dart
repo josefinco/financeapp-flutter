@@ -8,6 +8,8 @@ import '../../main.dart';
 import '../../features/bills/presentation/pages/bills_page.dart';
 import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
+import '../../features/transactions/presentation/pages/transactions_page.dart';
+import '../../features/reports/presentation/pages/reports_page.dart';
 
 part 'app_router.g.dart';
 
@@ -33,8 +35,8 @@ GoRouter appRouter(AppRouterRef ref) {
         routes: [
           GoRoute(path: '/', builder: (_, __) => const DashboardPage()),
           GoRoute(path: '/bills', builder: (_, __) => const BillsPage()),
-          GoRoute(path: '/transactions', builder: (_, __) => const _ComingSoonPage(title: 'Lançamentos')),
-          GoRoute(path: '/reports', builder: (_, __) => const _ComingSoonPage(title: 'Relatórios')),
+          GoRoute(path: '/transactions', builder: (_, __) => const TransactionsPage()),
+          GoRoute(path: '/reports', builder: (_, __) => const ReportsPage()),
           GoRoute(path: '/ai-chat', builder: (_, __) => const _ComingSoonPage(title: 'Assistente IA')),
         ],
       ),
@@ -90,7 +92,7 @@ class MainShell extends StatelessWidget {
   }
 }
 
-// ─── Placeholder para rotas não implementadas no backend ─────────────────────
+// ─── Placeholder para rotas ainda não implementadas ─────────────────────────
 
 class _ComingSoonPage extends StatelessWidget {
   final String title;
