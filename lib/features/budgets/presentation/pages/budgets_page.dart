@@ -281,7 +281,7 @@ class _BudgetCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final categoriesAsync = ref.watch(categoriesProvider);
+    final categoriesAsync = ref.watch(categoriesProvider());
 
     return categoriesAsync.when(
       data: (categories) {
@@ -525,7 +525,7 @@ class _CreateBudgetSheetState extends ConsumerState<_CreateBudgetSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final categoriesAsync = ref.watch(categoriesProvider);
+    final categoriesAsync = ref.watch(categoriesProvider());
 
     return Padding(
       padding: EdgeInsets.only(

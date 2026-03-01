@@ -197,7 +197,7 @@ class _CategoryCard extends ConsumerWidget {
       'food': Icons.restaurant,
       'transport': Icons.directions_car,
       'health': Icons.health_and_safety,
-      'entertainment': Icons.entertainment,
+      'entertainment': Icons.sports_esports,
       'bills': Icons.receipt,
       'salary': Icons.attach_money,
       'investment': Icons.trending_up,

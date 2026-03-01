@@ -408,7 +408,6 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                     ],
                   ),
                 );
-              );
             }).toList(),
           ),
         ),
