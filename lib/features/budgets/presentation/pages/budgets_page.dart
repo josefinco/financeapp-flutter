@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../features/categories/presentation/providers/categories_provider.dart';
+import '../../../categories/presentation/providers/categories_provider.dart';
 import '../../domain/entities/budget.dart';
 import '../providers/budgets_provider.dart';
 

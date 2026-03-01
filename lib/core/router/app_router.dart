@@ -10,6 +10,8 @@ import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/transactions/presentation/pages/transactions_page.dart';
 import '../../features/reports/presentation/pages/reports_page.dart';
+import '../../features/categories/presentation/pages/categories_page.dart';
+import '../../features/budgets/presentation/pages/budgets_page.dart';
 
 part 'app_router.g.dart';
 
@@ -37,6 +39,8 @@ GoRouter appRouter(AppRouterRef ref) {
           GoRoute(path: '/bills', builder: (_, __) => const BillsPage()),
           GoRoute(path: '/transactions', builder: (_, __) => const TransactionsPage()),
           GoRoute(path: '/reports', builder: (_, __) => const ReportsPage()),
+          GoRoute(path: '/categories', builder: (_, __) => const CategoriesPage()),
+          GoRoute(path: '/budgets', builder: (_, __) => const BudgetsPage()),
           GoRoute(path: '/ai-chat', builder: (_, __) => const _ComingSoonPage(title: 'Assistente IA')),
         ],
       ),

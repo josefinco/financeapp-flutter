@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter --version:*)",
+      "Bash(flutter devices:*)",
+      "Bash(flutter emulators:*)",
+      "Bash(xcrun simctl:*)",
+      "Bash(test:*)",
+      "Bash(flutter pub get:*)",
+      "Bash(dart run build_runner build:*)",
+      "Bash(open:*)",
+      "Bash(flutter run:*)",
+      "Bash(flutter create:*)",
+      "Bash(gem list:*)",
+      "Bash(brew install:*)",
+      "Bash(flutter doctor:*)",
+      "Bash(adb:*)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(flutter build:*)"
+    ]
+  }
+}
