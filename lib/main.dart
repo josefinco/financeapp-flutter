@@ -8,17 +8,38 @@ import 'core/config/app_config.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
 
+/// Whether backend services (Supabase/Firebase) are available.
+bool isBackendAvailable = false;
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await dotenv.load(fileName: '.env');
 
-  await Supabase.initialize(
-    url: AppConfig.supabaseUrl,
-    anonKey: AppConfig.supabaseAnonKey,
-  );
+  // Skip backend init when using placeholder credentials
+  final hasRealSupabase = AppConfig.supabaseUrl != 'https://your-project.supabase.co' &&
+      AppConfig.supabaseAnonKey != 'your-anon-key';
 
-  await Firebase.initializeApp();
+  if (hasRealSupabase) {
+    try {
+      await Supabase.initialize(
+        url: AppConfig.supabaseUrl,
+        anonKey: AppConfig.supabaseAnonKey,
+      );
+      isBackendAvailable = true;
+    } catch (e) {
+      debugPrint('Supabase init failed: $e — running in demo mode');
+    }
+
+    // Firebase is optional (push notifications) — don't block the app if missing
+    try {
+      await Firebase.initializeApp();
+    } catch (e) {
+      debugPrint('Firebase init skipped: $e');
+    }
+  } else {
+    debugPrint('No real Supabase credentials — running in demo mode');
+  }
 
   runApp(const ProviderScope(child: FinanceApp()));
 }
