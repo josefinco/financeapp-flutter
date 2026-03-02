@@ -1,5 +1,5 @@
-name: financeapp
-description: Gestão financeira pessoal inteligente com IA.
+name: moneta
+description: Moneta — Gestão financeira inteligente com IA.
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -74,6 +74,7 @@ dev_dependencies:
   riverpod_generator: ^2.6.4
   hive_ce_generator: ^1.9.2
   mocktail: ^1.0.4
+  flutter_launcher_icons: ^0.14.3
 
 flutter:
   uses-material-design: true
