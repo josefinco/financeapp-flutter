@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:firebase_core/firebase_core.dart';
 
@@ -15,6 +17,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await dotenv.load(fileName: '.env');
+  await initializeDateFormatting('pt_BR');
 
   // Skip backend init when using placeholder credentials
   final hasRealSupabase = AppConfig.supabaseUrl != 'https://your-project.supabase.co' &&
@@ -57,6 +60,16 @@ class FinanceApp extends ConsumerWidget {
       themeMode: ThemeMode.system,
       routerConfig: router,
       debugShowCheckedModeBanner: false,
+      locale: const Locale('pt', 'BR'),
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('pt', 'BR'),
+        Locale('en', 'US'),
+      ],
     );
   }
 }
