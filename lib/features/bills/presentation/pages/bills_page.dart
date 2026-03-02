@@ -129,73 +129,96 @@ class BillCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currencyFmt = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
-    final dateFmt = DateFormat('dd/MM/yyyy');
-    final color = _statusColor(bill.status);
+    final dateFmt     = DateFormat('dd/MM/yyyy');
+    final color       = _statusColor(bill.status);
+    final isDark      = Theme.of(context).brightness == Brightness.dark;
+    final isPaid      = bill.status == BillStatus.paid;
 
-    return Card(
+    return Material(
+      color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         onTap: () => _showDetails(context, ref),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              // Status indicator
-              Container(
-                width: 4,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(4),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF171720) : Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: color.withOpacity(isPaid ? 0.1 : 0.2), width: 1),
+            boxShadow: isDark
+                ? []
+                : [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 12, offset: const Offset(0, 3))],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                // ── Icon avatar ─────────────────────────────────────────
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(_statusIcon(bill.status), color: color, size: 22),
                 ),
-              ),
-              const SizedBox(width: 12),
-              // Content
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            bill.name,
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  decoration: bill.status == BillStatus.paid
-                                      ? TextDecoration.lineThrough
-                                      : null,
-                                ),
+                const SizedBox(width: 14),
+
+                // ── Main content ─────────────────────────────────────────
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        bill.name,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              decoration: isPaid ? TextDecoration.lineThrough : null,
+                              decorationColor: color,
+                            ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 5),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.calendar_today_outlined,
+                            size: 12,
+                            color: isDark ? Colors.white38 : Colors.grey.shade400,
                           ),
-                        ),
-                        Text(
-                          currencyFmt.format(bill.amount),
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: color,
-                              ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(Icons.calendar_today, size: 14, color: Colors.grey.shade500),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Vence: ${dateFmt.format(bill.dueDate)}',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Colors.grey.shade600,
-                              ),
-                        ),
-                        const Spacer(),
-                        _StatusChip(status: bill.status),
-                      ],
-                    ),
-                  ],
+                          const SizedBox(width: 4),
+                          Text(
+                            dateFmt.format(bill.dueDate),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? Colors.white38 : Colors.grey.shade500,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          _StatusChip(status: bill.status),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+
+                // ── Amount ────────────────────────────────────────────────
+                const SizedBox(width: 12),
+                Text(
+                  currencyFmt.format(bill.amount),
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: isPaid
+                        ? (isDark ? Colors.white30 : Colors.grey.shade400)
+                        : color,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -203,10 +226,17 @@ class BillCard extends ConsumerWidget {
   }
 
   Color _statusColor(BillStatus s) => switch (s) {
-        BillStatus.pending => AppTheme.pendingColor,
-        BillStatus.overdue => AppTheme.overdueColor,
-        BillStatus.paid => AppTheme.paidColor,
+        BillStatus.pending   => AppTheme.pendingColor,
+        BillStatus.overdue   => AppTheme.overdueColor,
+        BillStatus.paid      => AppTheme.paidColor,
         BillStatus.cancelled => Colors.grey,
+      };
+
+  IconData _statusIcon(BillStatus s) => switch (s) {
+        BillStatus.pending   => Icons.hourglass_top_rounded,
+        BillStatus.overdue   => Icons.warning_amber_rounded,
+        BillStatus.paid      => Icons.check_circle_rounded,
+        BillStatus.cancelled => Icons.cancel_outlined,
       };
 
   void _showDetails(BuildContext context, WidgetRef ref) {
