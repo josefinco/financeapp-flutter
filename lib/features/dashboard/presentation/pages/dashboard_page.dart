@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../bills/presentation/providers/bills_provider.dart';
@@ -180,18 +181,15 @@ class _HeroSection extends StatelessWidget {
                       ),
                     ],
                   ),
-                  GestureDetector(
-                    onTap: () {},
-                    child: Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.12),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white.withOpacity(0.18)),
+                  Row(
+                    children: [
+                      _GlassButton(icon: Icons.notifications_outlined, onTap: () {}),
+                      const SizedBox(width: 10),
+                      _GlassButton(
+                        icon: Icons.person_outline_rounded,
+                        onTap: () => context.go('/profile'),
                       ),
-                      child: const Icon(Icons.notifications_outlined, color: Colors.white, size: 20),
-                    ),
+                    ],
                   ),
                 ],
               ),
@@ -238,13 +236,34 @@ class _HeroSection extends StatelessWidget {
                 clipBehavior: Clip.none,
                 child: Row(
                   children: [
-                    _QuickChip(icon: Icons.add_rounded,           label: 'Nova conta'),
+                    _QuickChip(
+                      icon: Icons.add_rounded,
+                      label: 'Nova conta',
+                      onTap: () => showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        useSafeArea: true,
+                        builder: (_) => const CreateBillSheet(),
+                      ),
+                    ),
                     const SizedBox(width: 8),
-                    _QuickChip(icon: Icons.bar_chart_rounded,     label: 'Relatório'),
+                    _QuickChip(
+                      icon: Icons.bar_chart_rounded,
+                      label: 'Relatório',
+                      onTap: () => context.go('/reports'),
+                    ),
                     const SizedBox(width: 8),
-                    _QuickChip(icon: Icons.account_balance_wallet_outlined, label: 'Carteiras'),
+                    _QuickChip(
+                      icon: Icons.swap_horiz_rounded,
+                      label: 'Lançamentos',
+                      onTap: () => context.go('/transactions'),
+                    ),
                     const SizedBox(width: 8),
-                    _QuickChip(icon: Icons.category_outlined,     label: 'Categorias'),
+                    _QuickChip(
+                      icon: Icons.category_outlined,
+                      label: 'Categorias',
+                      onTap: () => context.go('/categories'),
+                    ),
                   ],
                 ),
               ),
@@ -353,33 +372,37 @@ class _GlassStatCard extends StatelessWidget {
 class _QuickChip extends StatelessWidget {
   final IconData icon;
   final String label;
+  final VoidCallback onTap;
 
-  const _QuickChip({required this.icon, required this.label});
+  const _QuickChip({required this.icon, required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: Colors.white, size: 14),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.1,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.white.withOpacity(0.2)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: Colors.white, size: 14),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.1,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

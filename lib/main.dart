@@ -10,6 +10,9 @@ import 'core/config/app_config.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
 
+/// Global theme mode provider — toggled from the profile screen.
+final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.system);
+
 /// Whether backend services (Supabase/Firebase) are available.
 bool isBackendAvailable = false;
 
@@ -52,12 +55,13 @@ class MonetaApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final router = ref.watch(appRouterProvider);
+    final router    = ref.watch(appRouterProvider);
+    final themeMode = ref.watch(themeModeProvider);
     return MaterialApp.router(
       title: 'Moneta',
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.system,
+      themeMode: themeMode,
       routerConfig: router,
       debugShowCheckedModeBanner: false,
       locale: const Locale('pt', 'BR'),

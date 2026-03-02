@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../domain/entities/transaction.dart';
 import '../providers/transactions_provider.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_feedback.dart';
 
 class TransactionsPage extends ConsumerStatefulWidget {
   const TransactionsPage({super.key});
@@ -108,14 +109,30 @@ class _TransactionsContent extends ConsumerWidget {
           Dismissible(
             key: ValueKey(tx.id),
             direction: DismissDirection.endToStart,
+            confirmDismiss: (_) => AppFeedback.confirmDelete(
+              context,
+              title: 'Excluir transação?',
+              subtitle: 'Esta ação não pode ser desfeita.',
+            ),
             onDismissed: (_) {
               ref.read(transactionsNotifierProvider.notifier).deleteTransaction(tx.id);
+              AppFeedback.showSuccess(context, 'Transação excluída.');
             },
             background: Container(
               alignment: Alignment.centerRight,
-              padding: const EdgeInsets.only(right: 16),
-              color: Colors.red,
-              child: const Icon(Icons.delete, color: Colors.white),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              decoration: BoxDecoration(
+                color: AppTheme.errorColor,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: const Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.delete_outline_rounded, color: Colors.white, size: 26),
+                  SizedBox(height: 4),
+                  Text('Excluir', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+                ],
+              ),
             ),
             child: _TransactionCard(transaction: tx),
           ),
@@ -142,60 +159,85 @@ class _SummaryCards extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark   = Theme.of(context).brightness == Brightness.dark;
+    final currFmt  = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$ ');
     return Row(
       children: [
-        Expanded(
-          child: Card(
-            color: Colors.green.withOpacity(0.1),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Receita',
-                    style: Theme.of(context).textTheme.labelLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'R\$ ${totalIncome.toStringAsFixed(2)}',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Colors.green,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+        _SummaryTile(
+          label: 'Receitas',
+          amount: currFmt.format(totalIncome),
+          icon: Icons.arrow_downward_rounded,
+          color: AppTheme.incomeColor,
+          isDark: isDark,
         ),
         const SizedBox(width: 12),
-        Expanded(
-          child: Card(
-            color: Colors.red.withOpacity(0.1),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Despesa',
-                    style: Theme.of(context).textTheme.labelLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'R\$ ${totalExpense.toStringAsFixed(2)}',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Colors.red,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+        _SummaryTile(
+          label: 'Despesas',
+          amount: currFmt.format(totalExpense),
+          icon: Icons.arrow_upward_rounded,
+          color: AppTheme.expenseColor,
+          isDark: isDark,
         ),
       ],
+    );
+  }
+}
+
+class _SummaryTile extends StatelessWidget {
+  final String label;
+  final String amount;
+  final IconData icon;
+  final Color color;
+  final bool isDark;
+
+  const _SummaryTile({
+    required this.label,
+    required this.amount,
+    required this.icon,
+    required this.color,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF171720) : Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: color.withOpacity(0.2)),
+          boxShadow: isDark
+              ? []
+              : [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 3))],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: color, size: 14),
+                ),
+                const SizedBox(width: 8),
+                Text(label, style: TextStyle(fontSize: 12, color: isDark ? Colors.white54 : Colors.grey.shade500, fontWeight: FontWeight.w600)),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              amount,
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: color, letterSpacing: -0.5),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -233,56 +275,72 @@ class _TransactionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _getTypeColor(transaction.type);
+    final color      = _getTypeColor(transaction.type);
+    final isDark     = Theme.of(context).brightness == Brightness.dark;
     final dateFormat = DateFormat('dd/MM/yyyy');
+    final currFmt    = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$ ');
+    final prefix     = transaction.type == TransactionType.income ? '+' : '−';
 
-    return Card(
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF171720) : Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withOpacity(0.15), width: 1),
+        boxShadow: isDark
+            ? []
+            : [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 3))],
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         child: Row(
           children: [
+            // Icon avatar
             Container(
-              width: 48,
-              height: 48,
+              width: 46,
+              height: 46,
               decoration: BoxDecoration(
-                color: color.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(12),
+                color: color.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(14),
               ),
-              child: Center(
-                child: Icon(
-                  _getTypeIcon(transaction.type),
-                  color: color,
-                  size: 24,
-                ),
-              ),
+              child: Icon(_getTypeIcon(transaction.type), color: color, size: 22),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 14),
+
+            // Description + date
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     transaction.description,
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    dateFormat.format(transaction.date),
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Colors.grey,
-                    ),
+                  Row(
+                    children: [
+                      Icon(Icons.calendar_today_outlined, size: 11, color: isDark ? Colors.white38 : Colors.grey.shade400),
+                      const SizedBox(width: 4),
+                      Text(
+                        dateFormat.format(transaction.date),
+                        style: TextStyle(fontSize: 12, color: isDark ? Colors.white38 : Colors.grey.shade500, fontWeight: FontWeight.w500),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
+
+            // Amount
             const SizedBox(width: 12),
             Text(
-              '${transaction.type == TransactionType.income ? '+' : '-'}R\$ ${transaction.amount.toStringAsFixed(2)}',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              '$prefix ${currFmt.format(transaction.amount)}',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
                 color: color,
-                fontWeight: FontWeight.bold,
+                letterSpacing: -0.5,
               ),
             ),
           ],
@@ -291,21 +349,17 @@ class _TransactionCard extends StatelessWidget {
     );
   }
 
-  Color _getTypeColor(TransactionType type) {
-    return switch (type) {
-      TransactionType.income => Colors.green,
-      TransactionType.expense => Colors.red,
-      TransactionType.transfer => Colors.blue,
-    };
-  }
+  Color _getTypeColor(TransactionType type) => switch (type) {
+    TransactionType.income   => AppTheme.incomeColor,
+    TransactionType.expense  => AppTheme.expenseColor,
+    TransactionType.transfer => const Color(0xFF29B6F6),
+  };
 
-  IconData _getTypeIcon(TransactionType type) {
-    return switch (type) {
-      TransactionType.income => Icons.add_circle_outline,
-      TransactionType.expense => Icons.remove_circle_outline,
-      TransactionType.transfer => Icons.swap_horiz,
-    };
-  }
+  IconData _getTypeIcon(TransactionType type) => switch (type) {
+    TransactionType.income   => Icons.arrow_downward_rounded,
+    TransactionType.expense  => Icons.arrow_upward_rounded,
+    TransactionType.transfer => Icons.swap_horiz_rounded,
+  };
 }
 
 // ─── Create Transaction Sheet ─────────────────────────────────────────────

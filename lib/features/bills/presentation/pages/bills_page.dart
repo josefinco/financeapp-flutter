@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../domain/entities/bill.dart';
 import '../providers/bills_provider.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_feedback.dart';
 import '../../../categories/presentation/providers/categories_provider.dart';
 
 class BillsPage extends ConsumerStatefulWidget {
@@ -321,12 +322,12 @@ class BillDetailsSheet extends ConsumerWidget {
                         final paid = await notifier.markPaid(bill.id);
                         if (paid != null && context.mounted) {
                           Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Conta marcada como paga! ✅'), backgroundColor: AppTheme.paidColor),
-                          );
+                          AppFeedback.showSuccess(context, 'Conta marcada como paga!');
                         }
                       },
-                icon: actionState.isLoading ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.check),
+                icon: actionState.isLoading
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.check_circle_outline_rounded),
                 label: Text(actionState.isLoading ? 'Processando...' : 'Marcar como Pago'),
               ),
           ],
@@ -402,15 +403,22 @@ class _CreateBillSheetState extends ConsumerState<CreateBillSheet> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // Parse amount: strip currency symbols, convert comma → dot
-    final raw = _amountController.text
-        .replaceAll(RegExp(r'[^\d,]'), '')
-        .replaceAll(',', '.');
-    final amount = double.tryParse(raw) ?? 0.0;
+    // Parse pt_BR currency: "R$ 1.250,99" → 1250.99
+    // 1) Use NumberFormat to parse robustly
+    double amount = 0.0;
+    try {
+      final fmt = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$ ');
+      amount = fmt.parse(_amountController.text).toDouble();
+    } catch (_) {
+      // fallback: strip non-numeric except comma, then swap
+      final cleaned = _amountController.text
+          .replaceAll(RegExp(r'[^\d,]'), '')
+          .replaceAll(',', '.');
+      amount = double.tryParse(cleaned) ?? 0.0;
+    }
+
     if (amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Informe um valor válido')),
-      );
+      AppFeedback.showError(context, 'Informe um valor válido maior que zero.');
       return;
     }
 
@@ -433,12 +441,7 @@ class _CreateBillSheetState extends ConsumerState<CreateBillSheet> {
     final bill = await ref.read(billsNotifierProvider.notifier).createBill(data);
     if (bill != null && mounted) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Conta "${bill.name}" criada! ✅'),
-          backgroundColor: AppTheme.paidColor,
-        ),
-      );
+      AppFeedback.showSuccess(context, 'Conta "${bill.name}" criada com sucesso!');
     }
   }
 
