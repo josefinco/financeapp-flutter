@@ -44,11 +44,11 @@ void main() async {
     debugPrint('No real Supabase credentials — running in demo mode');
   }
 
-  runApp(const ProviderScope(child: FinanceApp()));
+  runApp(const ProviderScope(child: MonetaApp()));
 }
 
-class FinanceApp extends ConsumerWidget {
-  const FinanceApp({super.key});
+class MonetaApp extends ConsumerWidget {
+  const MonetaApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

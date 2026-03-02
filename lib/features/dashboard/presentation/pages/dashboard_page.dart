@@ -18,7 +18,7 @@ class DashboardPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('FinanceApp'),
+        title: const Text('Moneta'),
         actions: [
           IconButton(icon: const Icon(Icons.notifications_outlined), onPressed: () {}),
         ],

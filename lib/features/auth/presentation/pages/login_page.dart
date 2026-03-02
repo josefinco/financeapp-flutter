@@ -28,7 +28,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             children: [
               const Icon(Icons.account_balance_wallet, size: 72, color: Color(0xFF4CAF50)),
               const SizedBox(height: 16),
-              Text('FinanceApp', textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
+              Text('Moneta', textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               Text('Sua vida financeira organizada', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey)),
               const SizedBox(height: 48),
