@@ -306,6 +306,32 @@ class _HeroSection extends StatelessWidget {
   }
 }
 
+// ─── Glass icon button ────────────────────────────────────────────────────────
+
+class _GlassButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _GlassButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.12),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white.withOpacity(0.18)),
+        ),
+        child: Icon(icon, color: Colors.white, size: 20),
+      ),
+    );
+  }
+}
+
 // ─── Glass stat card ──────────────────────────────────────────────────────────
 
 class _GlassStatCard extends StatelessWidget {
