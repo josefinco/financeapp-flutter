@@ -1,10 +1,13 @@
+import 'package:currency_text_input_formatter/currency_text_input_formatter.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../domain/entities/bill.dart';
 import '../providers/bills_provider.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../categories/presentation/providers/categories_provider.dart';
 
 class BillsPage extends ConsumerStatefulWidget {
   const BillsPage({super.key});
@@ -326,13 +329,334 @@ class _DetailRow extends StatelessWidget {
   }
 }
 
-// ─── Create Bill Sheet (placeholder — implement with form_builder) ─────────────
+// ─── Create Bill Sheet ────────────────────────────────────────────────────────
 
-class CreateBillSheet extends StatelessWidget {
+class CreateBillSheet extends ConsumerStatefulWidget {
   const CreateBillSheet({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return const Center(child: Text('Formulário de criação de conta — próxima etapa'));
+  ConsumerState<CreateBillSheet> createState() => _CreateBillSheetState();
+}
+
+class _CreateBillSheetState extends ConsumerState<CreateBillSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _amountController = TextEditingController();
+  final _installmentsController = TextEditingController();
+  final _notesController = TextEditingController();
+
+  DateTime _dueDate = DateTime.now().add(const Duration(days: 1));
+  String? _categoryId;
+  RecurrenceType _recurrence = RecurrenceType.none;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _amountController.dispose();
+    _installmentsController.dispose();
+    _notesController.dispose();
+    super.dispose();
   }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dueDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+      locale: const Locale('pt', 'BR'),
+    );
+    if (picked != null) setState(() => _dueDate = picked);
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    // Parse amount: strip currency symbols, convert comma → dot
+    final raw = _amountController.text
+        .replaceAll(RegExp(r'[^\d,]'), '')
+        .replaceAll(',', '.');
+    final amount = double.tryParse(raw) ?? 0.0;
+    if (amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Informe um valor válido')),
+      );
+      return;
+    }
+
+    final installments = int.tryParse(_installmentsController.text.trim());
+
+    final data = <String, dynamic>{
+      'name': _nameController.text.trim(),
+      'amount': amount,
+      'due_date': DateFormat('yyyy-MM-dd').format(_dueDate),
+      'recurrence': _recurrence.name,
+      if (_categoryId != null) 'category_id': _categoryId,
+      if (_notesController.text.trim().isNotEmpty)
+        'notes': _notesController.text.trim(),
+      if (_recurrence == RecurrenceType.none &&
+          installments != null &&
+          installments > 1)
+        'total_installments': installments,
+    };
+
+    final bill = await ref.read(billsNotifierProvider.notifier).createBill(data);
+    if (bill != null && mounted) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Conta "${bill.name}" criada! ✅'),
+          backgroundColor: AppTheme.paidColor,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final categoriesAsync = ref.watch(categoriesProvider());
+    final actionState = ref.watch(billsNotifierProvider);
+    final dateFmt = DateFormat('dd/MM/yyyy');
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.88,
+      maxChildSize: 0.96,
+      builder: (_, controller) => Padding(
+        padding: EdgeInsets.only(
+          left: 24,
+          right: 24,
+          top: 16,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        ),
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            controller: controller,
+            children: [
+              // ── Drag handle ──────────────────────────────────────────────
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Nova Conta',
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 24),
+
+              // ── Nome ─────────────────────────────────────────────────────
+              TextFormField(
+                controller: _nameController,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  labelText: 'Nome da conta *',
+                  hintText: 'Ex: Aluguel, Luz, Internet',
+                  prefixIcon: Icon(Icons.receipt_long_outlined),
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Informe o nome' : null,
+              ),
+              const SizedBox(height: 16),
+
+              // ── Valor ────────────────────────────────────────────────────
+              TextFormField(
+                controller: _amountController,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  CurrencyTextInputFormatter.currency(
+                    locale: 'pt_BR',
+                    symbol: 'R\$ ',
+                    decimalDigits: 2,
+                  ),
+                ],
+                decoration: const InputDecoration(
+                  labelText: 'Valor *',
+                  prefixIcon: Icon(Icons.attach_money),
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Informe o valor' : null,
+              ),
+              const SizedBox(height: 16),
+
+              // ── Data de vencimento ────────────────────────────────────────
+              InkWell(
+                onTap: _pickDate,
+                borderRadius: BorderRadius.circular(4),
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Vencimento *',
+                    prefixIcon: Icon(Icons.calendar_today_outlined),
+                    border: OutlineInputBorder(),
+                    suffixIcon: Icon(Icons.arrow_drop_down),
+                  ),
+                  child: Text(dateFmt.format(_dueDate)),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // ── Categoria ─────────────────────────────────────────────────
+              categoriesAsync.when(
+                loading: () => const LinearProgressIndicator(),
+                error: (_, __) => const SizedBox.shrink(),
+                data: (cats) => DropdownButtonFormField<String>(
+                  value: _categoryId,
+                  decoration: const InputDecoration(
+                    labelText: 'Categoria',
+                    prefixIcon: Icon(Icons.label_outline),
+                    border: OutlineInputBorder(),
+                  ),
+                  items: [
+                    const DropdownMenuItem(
+                      value: null,
+                      child: Text('Sem categoria'),
+                    ),
+                    ...cats.map(
+                      (c) => DropdownMenuItem(
+                        value: c.id,
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 12,
+                              height: 12,
+                              margin: const EdgeInsets.only(right: 8),
+                              decoration: BoxDecoration(
+                                color: _hexColor(c.color),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            Text(c.name),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                  onChanged: (v) => setState(() => _categoryId = v),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // ── Recorrência ───────────────────────────────────────────────
+              DropdownButtonFormField<RecurrenceType>(
+                value: _recurrence,
+                decoration: const InputDecoration(
+                  labelText: 'Recorrência',
+                  prefixIcon: Icon(Icons.repeat),
+                  border: OutlineInputBorder(),
+                ),
+                items: RecurrenceType.values
+                    .map((r) => DropdownMenuItem(
+                          value: r,
+                          child: Text(_recurrenceLabel(r)),
+                        ))
+                    .toList(),
+                onChanged: (v) => setState(() => _recurrence = v!),
+              ),
+              const SizedBox(height: 16),
+
+              // ── Parcelas (só quando sem recorrência) ──────────────────────
+              if (_recurrence == RecurrenceType.none)
+                Column(
+                  children: [
+                    TextFormField(
+                      controller: _installmentsController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: const InputDecoration(
+                        labelText: 'Nº de parcelas',
+                        hintText: 'Deixe vazio para sem parcelamento',
+                        prefixIcon: Icon(Icons.format_list_numbered),
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (v) {
+                        if (v == null || v.isEmpty) return null;
+                        final n = int.tryParse(v);
+                        if (n == null || n < 2) return 'Mínimo 2 parcelas';
+                        if (n > 360) return 'Máximo 360 parcelas';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+
+              // ── Observações ───────────────────────────────────────────────
+              TextFormField(
+                controller: _notesController,
+                maxLines: 2,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  labelText: 'Observações',
+                  hintText: 'Opcional',
+                  prefixIcon: Icon(Icons.notes_outlined),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 28),
+
+              // ── Botões ────────────────────────────────────────────────────
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: actionState.isLoading
+                          ? null
+                          : () => Navigator.pop(context),
+                      child: const Text('Cancelar'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton.icon(
+                      onPressed: actionState.isLoading ? null : _submit,
+                      icon: actionState.isLoading
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.check),
+                      label: Text(
+                          actionState.isLoading ? 'Salvando...' : 'Criar Conta'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _hexColor(String hex) {
+    try {
+      return Color(int.parse(hex.replaceFirst('#', '0xFF')));
+    } catch (_) {
+      return Colors.grey;
+    }
+  }
+
+  String _recurrenceLabel(RecurrenceType r) => switch (r) {
+        RecurrenceType.none => 'Sem recorrência',
+        RecurrenceType.daily => 'Diária',
+        RecurrenceType.weekly => 'Semanal',
+        RecurrenceType.monthly => 'Mensal',
+        RecurrenceType.yearly => 'Anual',
+      };
 }
