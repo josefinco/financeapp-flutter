@@ -25,6 +25,13 @@ class DashboardPage extends ConsumerWidget {
     // All overdue bills — filtered client-side to current month for the summary
     final overdueAsync = ref.watch(billsProvider(status: BillStatus.overdue));
 
+    // Paid bills filtered by current month
+    final paidAsync = ref.watch(billsProvider(
+      status: BillStatus.paid,
+      month: now.month,
+      year: now.year,
+    ));
+
     final upcomingAsync = ref.watch(upcomingBillsProvider(days: 7));
     final currencyFmt = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
     final monthName = _cap(DateFormat('MMMM', 'pt_BR').format(now));
@@ -44,6 +51,7 @@ class DashboardPage extends ConsumerWidget {
               child: _HeroSection(
                 pendingAsync: pendingAsync,
                 overdueAsync: overdueAsync,
+                paidAsync: paidAsync,
                 currencyFmt: currencyFmt,
                 monthName: monthName,
                 now: now,
@@ -129,6 +137,7 @@ class DashboardPage extends ConsumerWidget {
 class _HeroSection extends ConsumerWidget {
   final AsyncValue<dynamic> pendingAsync;
   final AsyncValue<dynamic> overdueAsync;
+  final AsyncValue<dynamic> paidAsync;
   final NumberFormat currencyFmt;
   final String monthName;
   final DateTime now;
@@ -136,6 +145,7 @@ class _HeroSection extends ConsumerWidget {
   const _HeroSection({
     required this.pendingAsync,
     required this.overdueAsync,
+    required this.paidAsync,
     required this.currencyFmt,
     required this.monthName,
     required this.now,
@@ -168,9 +178,18 @@ class _HeroSection extends ConsumerWidget {
     final overdueAmount =
         overdueBills.fold(0.0, (s, b) => s + b.amount);
 
+    // Paid this month
+    final paidBills = paidAsync.maybeWhen(
+      data: (res) => res.items as List<Bill>,
+      orElse: () => <Bill>[],
+    );
+    final paidCount = paidBills.length;
+    final paidAmount = paidBills.fold(0.0, (s, b) => s + (b.paidAmount ?? b.amount));
+
     // Total unpaid this month = pending + overdue
     final totalUnpaid = pendingAmount + overdueAmount;
-    final isLoading = pendingAsync.isLoading || overdueAsync.isLoading;
+    final isLoading =
+        pendingAsync.isLoading || overdueAsync.isLoading || paidAsync.isLoading;
 
     return Container(
       decoration: const BoxDecoration(
@@ -311,10 +330,9 @@ class _HeroSection extends ConsumerWidget {
 
               const SizedBox(height: 20),
 
-              // ── Status cards ──────────────────────────────────────────
+              // ── Status cards row 1: A Pagar + Vencidas ────────────────
               Row(
                 children: [
-                  // A Pagar card
                   Expanded(
                     child: _BillStatusCard(
                       label: 'A Pagar',
@@ -329,7 +347,6 @@ class _HeroSection extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  // Vencidas card
                   Expanded(
                     child: _BillStatusCard(
                       label: 'Vencidas',
@@ -345,6 +362,17 @@ class _HeroSection extends ConsumerWidget {
                     ),
                   ),
                 ],
+              ),
+
+              const SizedBox(height: 10),
+
+              // ── Status card row 2: Pagas (full-width) ─────────────────
+              _PaidCard(
+                count: paidCount,
+                amount: paidAmount,
+                currencyFmt: currencyFmt,
+                isLoading: paidAsync.isLoading,
+                onTap: () => context.go('/bills'),
               ),
             ],
           ),
@@ -486,6 +514,109 @@ class _BillStatusCard extends StatelessWidget {
                       color: Colors.white.withOpacity(0.45),
                       fontSize: 10,
                       fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+// ─── Paid card (full-width, green) ───────────────────────────────────────────
+
+class _PaidCard extends StatelessWidget {
+  final int count;
+  final double amount;
+  final NumberFormat currencyFmt;
+  final bool isLoading;
+  final VoidCallback onTap;
+
+  const _PaidCard({
+    required this.count,
+    required this.amount,
+    required this.currencyFmt,
+    required this.isLoading,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const green = Color(0xFF4CAF50);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        decoration: BoxDecoration(
+          color: green.withOpacity(0.13),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: count > 0
+                ? green.withOpacity(0.35)
+                : Colors.white.withOpacity(0.12),
+            width: 1,
+          ),
+        ),
+        child: isLoading
+            ? const Center(
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                      color: Colors.white54, strokeWidth: 2),
+                ),
+              )
+            : Row(
+                children: [
+                  // Check icon
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: green.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.check_circle_outline_rounded,
+                        color: green, size: 18),
+                  ),
+                  const SizedBox(width: 12),
+                  // Labels
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Pagas este mês',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.85),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          count == 0
+                              ? 'Nenhuma conta paga'
+                              : '$count ${count == 1 ? 'conta paga' : 'contas pagas'}',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.45),
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Amount
+                  Text(
+                    count == 0 ? 'R\$ 0,00' : currencyFmt.format(amount),
+                    style: TextStyle(
+                      color: count == 0
+                          ? Colors.white.withOpacity(0.3)
+                          : green,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.4,
                     ),
                   ),
                 ],
