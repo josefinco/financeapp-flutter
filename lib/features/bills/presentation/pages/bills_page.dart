@@ -404,11 +404,17 @@ class _BillsList extends ConsumerWidget {
         final bills = response.items;
         final currFmt = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
 
+        // Use the actual filtered list for count and total — avoids showing
+        // global summary values on a tab that only shows a subset of bills.
+        final filteredCount = bills.length;
+        final filteredAmount =
+            bills.fold(0.0, (sum, b) => sum + b.amount);
+
         Widget? summaryBar;
-        if (response.total > 0) {
+        if (filteredCount > 0) {
           summaryBar = _SummaryBar(
-            count: response.total,
-            amount: response.totalPendingAmount,
+            count: filteredCount,
+            amount: filteredAmount,
             status: status,
             currFmt: currFmt,
           );
