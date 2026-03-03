@@ -932,7 +932,7 @@ class _CreateTransactionSheetState
                         .map((w) => DropdownMenuItem(
                               value: w.walletId,
                               child: Row(children: [
-                                Icon(_walletIcon(w.type),
+                                Icon(_walletIcon(w.walletType),
                                     size: 16, color: AppTheme.incomeColor),
                                 const SizedBox(width: 8),
                                 Expanded(child: Text(w.walletName, overflow: TextOverflow.ellipsis)),
