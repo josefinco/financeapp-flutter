@@ -339,7 +339,7 @@ class _CategoryFilterBar extends ConsumerWidget {
 
 // ─── Bills List ───────────────────────────────────────────────────────────────
 
-class _BillsList extends ConsumerWidget {
+class _BillsList extends ConsumerStatefulWidget {
   final BillStatus status;
   final int month;
   final int year;
@@ -353,13 +353,52 @@ class _BillsList extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_BillsList> createState() => _BillsListState();
+}
+
+class _BillsListState extends ConsumerState<_BillsList> {
+  String? _selectedBillId;
+
+  void _clearSelection() => setState(() => _selectedBillId = null);
+
+  void _toggleSelection(String id) {
+    setState(() => _selectedBillId = _selectedBillId == id ? null : id);
+  }
+
+  Future<void> _deleteSelected(BuildContext context) async {
+    final id = _selectedBillId;
+    if (id == null) return;
+
+    final confirmed = await AppFeedback.confirm(
+      context,
+      title: 'Excluir conta',
+      message: 'Tem certeza que deseja excluir esta conta? Esta ação não pode ser desfeita.',
+      confirmLabel: 'Excluir',
+      confirmColor: AppTheme.errorColor,
+      icon: Icons.delete_rounded,
+    );
+    if (!confirmed || !mounted) return;
+
+    _clearSelection();
+    final ok = await ref.read(billsNotifierProvider.notifier).deleteBill(id);
+    if (mounted) {
+      if (ok) {
+        AppFeedback.showSuccess(context, 'Conta excluída.');
+      } else {
+        AppFeedback.showError(context, 'Erro ao excluir conta.');
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final billsAsync = ref.watch(billsProvider(
-      status: status,
-      month: month,
-      year: year,
-      categoryId: categoryId,
+      status: widget.status,
+      month: widget.month,
+      year: widget.year,
+      categoryId: widget.categoryId,
     ));
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return billsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -381,18 +420,15 @@ class _BillsList extends ConsumerWidget {
         final bills = response.items;
         final currFmt = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
 
-        // Use the actual filtered list for count and total — avoids showing
-        // global summary values on a tab that only shows a subset of bills.
         final filteredCount = bills.length;
-        final filteredAmount =
-            bills.fold(0.0, (sum, b) => sum + b.amount);
+        final filteredAmount = bills.fold(0.0, (sum, b) => sum + b.amount);
 
         Widget? summaryBar;
         if (filteredCount > 0) {
           summaryBar = _SummaryBar(
             count: filteredCount,
             amount: filteredAmount,
-            status: status,
+            status: widget.status,
             currFmt: currFmt,
           );
         }
@@ -409,15 +445,15 @@ class _BillsList extends ConsumerWidget {
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: _statusColor(status).withOpacity(0.08),
+                          color: _statusColor(widget.status).withOpacity(0.08),
                           shape: BoxShape.circle,
                         ),
-                        child: Icon(_statusIcon(status),
+                        child: Icon(_statusIcon(widget.status),
                             size: 36,
-                            color: _statusColor(status).withOpacity(0.5)),
+                            color: _statusColor(widget.status).withOpacity(0.5)),
                       ),
                       const SizedBox(height: 16),
-                      Text('Nenhuma conta ${_statusLabel(status)}',
+                      Text('Nenhuma conta ${_statusLabel(widget.status)}',
                           style: Theme.of(context).textTheme.titleSmall),
                     ],
                   ),
@@ -427,24 +463,69 @@ class _BillsList extends ConsumerWidget {
           );
         }
 
-        return Column(
+        return Stack(
           children: [
-            if (summaryBar != null) summaryBar,
-            Expanded(
-              child: RefreshIndicator(
-                color: AppTheme.incomeColor,
-                onRefresh: () async => ref.invalidate(billsProvider),
-                child: ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
-                  itemCount: bills.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (_, i) => BillCard(bill: bills[i]),
+            Column(
+              children: [
+                if (summaryBar != null) summaryBar,
+                Expanded(
+                  child: GestureDetector(
+                    // Toque fora do card desmarca a seleção
+                    onTap: _selectedBillId != null ? _clearSelection : null,
+                    behavior: HitTestBehavior.translucent,
+                    child: RefreshIndicator(
+                      color: AppTheme.incomeColor,
+                      onRefresh: () async => ref.invalidate(billsProvider),
+                      child: ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+                        itemCount: bills.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        itemBuilder: (_, i) {
+                          final bill = bills[i];
+                          final isSelected = _selectedBillId == bill.id;
+                          return BillCard(
+                            bill: bill,
+                            isSelected: isSelected,
+                            onTap: () {
+                              if (_selectedBillId != null) {
+                                _clearSelection();
+                              } else {
+                                _showDetails(context, bill);
+                              }
+                            },
+                            onLongPress: () => _toggleSelection(bill.id),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            // ── Barra de exclusão flutuante ──────────────────────────────
+            if (_selectedBillId != null)
+              Positioned(
+                bottom: 16,
+                left: 24,
+                right: 24,
+                child: _DeleteBar(
+                  isDark: isDark,
+                  onCancel: _clearSelection,
+                  onDelete: () => _deleteSelected(context),
                 ),
               ),
-            ),
           ],
         );
       },
+    );
+  }
+
+  void _showDetails(BuildContext context, Bill bill) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => BillDetailsSheet(bill: bill),
     );
   }
 
@@ -531,8 +612,17 @@ class _SummaryBar extends StatelessWidget {
 
 class BillCard extends ConsumerWidget {
   final Bill bill;
+  final bool isSelected;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
-  const BillCard({super.key, required this.bill});
+  const BillCard({
+    super.key,
+    required this.bill,
+    this.isSelected = false,
+    this.onTap,
+    this.onLongPress,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -542,24 +632,33 @@ class BillCard extends ConsumerWidget {
     final isDark      = Theme.of(context).brightness == Brightness.dark;
     final isPaid      = bill.status == BillStatus.paid;
 
-    return Material(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        // Destaque sutil ao selecionar
+        boxShadow: isSelected
+            ? [BoxShadow(color: AppTheme.errorColor.withOpacity(0.25), blurRadius: 14, spreadRadius: 1)]
+            : (isDark ? [] : [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 12, offset: const Offset(0, 3))]),
+      ),
+      child: Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        onTap: () => _showDetails(context, ref),
+        onTap: onTap ?? () => _showDetails(context, ref),
+        onLongPress: onLongPress,
         child: Ink(
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF171720) : Colors.white,
+            color: isSelected
+                ? (isDark ? const Color(0xFF2A1A1A) : const Color(0xFFFFF3F3))
+                : (isDark ? const Color(0xFF171720) : Colors.white),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: color.withOpacity(isPaid ? 0.1 : 0.2)),
-            boxShadow: isDark
-                ? []
-                : [
-                    BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 12,
-                        offset: const Offset(0, 3))
-                  ],
+            border: Border.all(
+              color: isSelected
+                  ? AppTheme.errorColor.withOpacity(0.5)
+                  : color.withOpacity(isPaid ? 0.1 : 0.2),
+              width: isSelected ? 1.5 : 1,
+            ),
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -625,17 +724,30 @@ class BillCard extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  currencyFmt.format(bill.amount),
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: isPaid
-                        ? (isDark ? Colors.white30 : Colors.grey.shade400)
-                        : color,
-                    letterSpacing: -0.5,
-                  ),
-                ),
+                // Ícone de selecionado ou valor
+                isSelected
+                    ? Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: AppTheme.errorColor.withOpacity(0.12),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppTheme.errorColor.withOpacity(0.5)),
+                        ),
+                        child: const Icon(Icons.check_rounded,
+                            size: 18, color: AppTheme.errorColor),
+                      )
+                    : Text(
+                        currencyFmt.format(bill.amount),
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: isPaid
+                              ? (isDark ? Colors.white30 : Colors.grey.shade400)
+                              : color,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
               ],
             ),
           ),
@@ -663,6 +775,108 @@ class BillCard extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       builder: (_) => BillDetailsSheet(bill: bill),
+    );
+  }
+}
+
+// ─── Delete Bar ──────────────────────────────────────────────────────────────
+
+class _DeleteBar extends StatelessWidget {
+  final VoidCallback onCancel;
+  final VoidCallback onDelete;
+  final bool isDark;
+
+  const _DeleteBar({
+    required this.onCancel,
+    required this.onDelete,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E2C) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppTheme.errorColor.withOpacity(0.3),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.4 : 0.12),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Ícone + texto
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppTheme.errorColor.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.delete_outline_rounded,
+                color: AppTheme.errorColor, size: 18),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text(
+              '1 conta selecionada',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+            ),
+          ),
+          // Botão cancelar
+          GestureDetector(
+            onTap: onCancel,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white10 : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                'Cancelar',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white60 : Colors.grey.shade600,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Botão excluir
+          GestureDetector(
+            onTap: onDelete,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppTheme.errorColor,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.delete_rounded, color: Colors.white, size: 15),
+                  SizedBox(width: 5),
+                  Text(
+                    'Excluir',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
