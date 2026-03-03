@@ -37,6 +37,20 @@ class CategoriesNotifier extends _$CategoriesNotifier {
     }
   }
 
+  Future<Category?> updateCategory(String id, Map<String, dynamic> data) async {
+    state = const AsyncLoading();
+    try {
+      final ds = ref.read(categoriesDatasourceProvider);
+      final category = await ds.updateCategory(id, data);
+      state = const AsyncData(null);
+      ref.invalidate(categoriesProvider);
+      return category;
+    } catch (e, st) {
+      state = AsyncError(e, st);
+      return null;
+    }
+  }
+
   Future<bool> deleteCategory(String id) async {
     state = const AsyncLoading();
     try {
