@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../bills/domain/entities/bill.dart';
 import '../../../bills/presentation/providers/bills_provider.dart';
@@ -14,6 +15,10 @@ class DashboardPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final now = DateTime.now();
+
+    // Resolve user's first name from Supabase auth metadata or email
+    final authUser = Supabase.instance.client.auth.currentUser;
+    final firstName = _resolveFirstName(authUser);
 
     // Pending bills filtered by current month
     final pendingAsync = ref.watch(billsProvider(
@@ -54,7 +59,23 @@ class DashboardPage extends ConsumerWidget {
                 paidAsync: paidAsync,
                 currencyFmt: currencyFmt,
                 monthName: monthName,
+                firstName: firstName,
                 now: now,
+              ),
+            ),
+
+            // ─── Month progress card ──────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                child: _MonthProgressCard(
+                  pendingAsync: pendingAsync,
+                  overdueAsync: overdueAsync,
+                  paidAsync: paidAsync,
+                  currencyFmt: currencyFmt,
+                  monthName: monthName,
+                  now: now,
+                ),
               ),
             ),
 
@@ -74,9 +95,20 @@ class DashboardPage extends ConsumerWidget {
                     ),
                     upcomingAsync.maybeWhen(
                       data: (bills) => bills.isNotEmpty
-                          ? _CountBadge(
-                              count: bills.length,
-                              color: AppTheme.pendingColor)
+                          ? GestureDetector(
+                              onTap: () => context.go('/bills'),
+                              child: Row(children: [
+                                _CountBadge(
+                                    count: bills.length,
+                                    color: AppTheme.pendingColor),
+                                const SizedBox(width: 6),
+                                Text('Ver todos',
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        color: AppTheme.pendingColor,
+                                        fontWeight: FontWeight.w600)),
+                              ]),
+                            )
                           : const SizedBox(),
                       orElse: () => const SizedBox(),
                     ),
@@ -129,7 +161,25 @@ class DashboardPage extends ConsumerWidget {
   }
 
   static String _cap(String s) =>
-      s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+      s.isEmpty ? s : s[0].toUpperCase() + s.substring(1).toLowerCase();
+
+  static String _resolveFirstName(User? user) {
+    if (user == null) return 'você';
+    // 1. Try Supabase userMetadata (set at sign-up or profile update)
+    final meta = user.userMetadata;
+    if (meta != null) {
+      for (final key in ['full_name', 'name', 'display_name']) {
+        final v = meta[key];
+        if (v is String && v.trim().isNotEmpty) {
+          return _cap(v.trim().split(RegExp(r'\s+')).first);
+        }
+      }
+    }
+    // 2. Derive from email: "jose.silva@..." → "Jose"
+    final email = user.email ?? '';
+    final local = email.split('@').first;
+    return _cap(local.split(RegExp(r'[._+\-]')).first);
+  }
 }
 
 // ─── Hero Section ──────────────────────────────────────────────────────────────
@@ -140,6 +190,7 @@ class _HeroSection extends ConsumerWidget {
   final AsyncValue<dynamic> paidAsync;
   final NumberFormat currencyFmt;
   final String monthName;
+  final String firstName;
   final DateTime now;
 
   const _HeroSection({
@@ -148,14 +199,15 @@ class _HeroSection extends ConsumerWidget {
     required this.paidAsync,
     required this.currencyFmt,
     required this.monthName,
+    required this.firstName,
     required this.now,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final hour = DateTime.now().hour;
-    final greeting =
-        hour < 12 ? 'Bom dia ☀️' : hour < 18 ? 'Boa tarde 🌤' : 'Boa noite 🌙';
+    final greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
+    final greetingEmoji = hour < 12 ? '☀️' : hour < 18 ? '🌤' : '🌙';
 
     // Pending this month
     final pendingBills = pendingAsync.maybeWhen(
@@ -213,40 +265,77 @@ class _HeroSection extends ConsumerWidget {
             children: [
               // ── Top bar ────────────────────────────────────────────────
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        greeting,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.6),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
+                  // Brand + greeting
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Greeting line with name
+                        Row(
+                          children: [
+                            Text(
+                              '$greeting, $firstName ',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.65),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                letterSpacing: 0.1,
+                              ),
+                            ),
+                            Text(greetingEmoji,
+                                style: const TextStyle(fontSize: 13)),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      const Text(
-                        'Moneta',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.8,
+                        const SizedBox(height: 3),
+                        // Brand name
+                        const Text(
+                          'Moneta',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 26,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -1.0,
+                            height: 1.0,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                  Row(
-                    children: [
-                      _GlassButton(icon: Icons.notifications_outlined, onTap: () {}),
-                      const SizedBox(width: 10),
-                      _GlassButton(
-                        icon: Icons.person_outline_rounded,
-                        onTap: () => context.go('/profile'),
+                  // Action buttons
+                  _GlassButton(
+                      icon: Icons.notifications_outlined, onTap: () {}),
+                  const SizedBox(width: 10),
+                  // Avatar button with initials
+                  GestureDetector(
+                    onTap: () => context.go('/profile'),
+                    child: Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF4CAF50), Color(0xFF29B6F6)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                            color: Colors.white.withOpacity(0.3), width: 1.5),
                       ),
-                    ],
+                      child: Center(
+                        child: Text(
+                          firstName.isNotEmpty
+                              ? firstName[0].toUpperCase()
+                              : '?',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -518,6 +607,261 @@ class _BillStatusCard extends StatelessWidget {
                   ),
                 ],
               ),
+      ),
+    );
+  }
+}
+
+// ─── Month Progress Card ──────────────────────────────────────────────────────
+
+class _MonthProgressCard extends StatelessWidget {
+  final AsyncValue<dynamic> pendingAsync;
+  final AsyncValue<dynamic> overdueAsync;
+  final AsyncValue<dynamic> paidAsync;
+  final NumberFormat currencyFmt;
+  final String monthName;
+  final DateTime now;
+
+  const _MonthProgressCard({
+    required this.pendingAsync,
+    required this.overdueAsync,
+    required this.paidAsync,
+    required this.currencyFmt,
+    required this.monthName,
+    required this.now,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final paidBills = paidAsync.maybeWhen(
+      data: (res) => res.items as List<Bill>,
+      orElse: () => <Bill>[],
+    );
+    final pendingBills = pendingAsync.maybeWhen(
+      data: (res) => res.items as List<Bill>,
+      orElse: () => <Bill>[],
+    );
+    final overdueBills = overdueAsync.maybeWhen(
+      data: (res) => (res.items as List<Bill>)
+          .where((b) =>
+              b.dueDate.month == now.month && b.dueDate.year == now.year)
+          .toList(),
+      orElse: () => <Bill>[],
+    );
+
+    final paidCount = paidBills.length;
+    final paidAmount =
+        paidBills.fold(0.0, (s, b) => s + (b.paidAmount ?? b.amount));
+    final totalCount = paidCount + pendingBills.length + overdueBills.length;
+    final progress = totalCount > 0 ? paidCount / totalCount : 0.0;
+
+    final isLoading =
+        pendingAsync.isLoading || overdueAsync.isLoading || paidAsync.isLoading;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF171720) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: isDark
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+        border: isDark
+            ? Border.all(color: Colors.white.withOpacity(0.06))
+            : null,
+      ),
+      child: isLoading
+          ? const Center(
+              child: SizedBox(
+                height: 60,
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              ),
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header row
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Calendar icon with month
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: AppTheme.incomeColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.calendar_month_rounded,
+                              size: 14, color: AppTheme.incomeColor),
+                          const SizedBox(width: 5),
+                          Text(
+                            monthName,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.incomeColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Spacer(),
+                    // Progress percentage
+                    Text(
+                      totalCount == 0
+                          ? 'Sem contas'
+                          : '$paidCount de $totalCount ${totalCount == 1 ? 'conta paga' : 'contas pagas'}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: isDark
+                            ? Colors.white.withOpacity(0.5)
+                            : Colors.black54,
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 14),
+
+                // Progress bar
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 8,
+                    backgroundColor: isDark
+                        ? Colors.white.withOpacity(0.08)
+                        : Colors.black.withOpacity(0.06),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      progress == 1.0
+                          ? AppTheme.incomeColor
+                          : const Color(0xFF29B6F6),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 14),
+
+                // Bottom row: paid vs remaining
+                Row(
+                  children: [
+                    // Paid
+                    Expanded(
+                      child: _ProgressStat(
+                        label: 'Pago',
+                        value: currencyFmt.format(paidAmount),
+                        color: AppTheme.incomeColor,
+                        icon: Icons.check_rounded,
+                        isDark: isDark,
+                      ),
+                    ),
+                    Container(
+                      width: 1,
+                      height: 32,
+                      color: isDark
+                          ? Colors.white.withOpacity(0.08)
+                          : Colors.black.withOpacity(0.06),
+                    ),
+                    // Remaining (pending + overdue)
+                    Expanded(
+                      child: _ProgressStat(
+                        label: 'Em aberto',
+                        value: currencyFmt.format(
+                          (pendingBills.fold(0.0, (s, b) => s + b.amount)) +
+                              (overdueBills.fold(0.0, (s, b) => s + b.amount)),
+                        ),
+                        color: pendingBills.isEmpty && overdueBills.isEmpty
+                            ? AppTheme.incomeColor
+                            : AppTheme.pendingColor,
+                        icon: Icons.pending_outlined,
+                        isDark: isDark,
+                        alignRight: true,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+class _ProgressStat extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+  final IconData icon;
+  final bool isDark;
+  final bool alignRight;
+
+  const _ProgressStat({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.icon,
+    required this.isDark,
+    this.alignRight = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+          left: alignRight ? 14 : 0, right: alignRight ? 0 : 14),
+      child: Column(
+        crossAxisAlignment:
+            alignRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: alignRight
+                ? MainAxisAlignment.end
+                : MainAxisAlignment.start,
+            children: [
+              if (!alignRight) ...[
+                Icon(icon, size: 11, color: color),
+                const SizedBox(width: 4),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  color: isDark
+                      ? Colors.white.withOpacity(0.45)
+                      : Colors.black45,
+                ),
+              ),
+              if (alignRight) ...[
+                const SizedBox(width: 4),
+                Icon(icon, size: 11, color: color),
+              ],
+            ],
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: color,
+              letterSpacing: -0.3,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
