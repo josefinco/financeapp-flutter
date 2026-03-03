@@ -753,7 +753,8 @@ class BillCard extends ConsumerWidget {
           ),
         ),
       ),
-    );
+    ),   // InkWell
+  );     // AnimatedContainer
   }
 
   Color _statusColor(BillStatus s) => switch (s) {
