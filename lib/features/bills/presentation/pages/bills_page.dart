@@ -1,4 +1,3 @@
-import 'package:currency_text_input_formatter/currency_text_input_formatter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -998,15 +997,18 @@ class _CreateBillSheetState extends ConsumerState<CreateBillSheet> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // Parse the raw decimal value typed by the user.
+    // Accepts both comma and dot as decimal separator (e.g. "1.500,00" or "150.00").
+    final rawAmount = _amountController.text.trim();
     double amount = 0.0;
-    try {
-      final fmt = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$ ');
-      amount = fmt.parse(_amountController.text).toDouble();
-    } catch (_) {
-      final cleaned = _amountController.text
-          .replaceAll(RegExp(r'[^\d,]'), '')
-          .replaceAll(',', '.');
-      amount = double.tryParse(cleaned) ?? 0.0;
+    if (rawAmount.contains(',') && rawAmount.contains('.')) {
+      // Brazilian format: "1.500,00" — remove dots (thousands), comma → dot
+      amount = double.tryParse(
+              rawAmount.replaceAll('.', '').replaceAll(',', '.')) ??
+          0.0;
+    } else {
+      // Simple format: "150,00" or "150.00"
+      amount = double.tryParse(rawAmount.replaceAll(',', '.')) ?? 0.0;
     }
 
     if (amount <= 0) {
@@ -1096,16 +1098,25 @@ class _CreateBillSheetState extends ConsumerState<CreateBillSheet> {
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 inputFormatters: [
-                  CurrencyTextInputFormatter.currency(
-                      locale: 'pt_BR', symbol: 'R\$ ', decimalDigits: 2),
+                  // Allow digits, commas, and dots — no other characters.
+                  FilteringTextInputFormatter.allow(RegExp(r'[\d,.]')),
                 ],
                 decoration: const InputDecoration(
                   labelText: 'Valor *',
                   prefixIcon: Icon(Icons.attach_money),
+                  prefixText: 'R\$ ',
                   border: OutlineInputBorder(),
+                  hintText: '0,00',
                 ),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Informe o valor' : null,
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return 'Informe o valor';
+                  final parsed =
+                      double.tryParse(v.trim().replaceAll(',', '.'));
+                  if (parsed == null || parsed <= 0) {
+                    return 'Valor inválido';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 16),
 
