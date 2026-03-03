@@ -22,12 +22,14 @@ Future<BillListResponse> bills(
   BillStatus? status,
   int? month,
   int? year,
+  String? categoryId,
 }) async {
   final ds = ref.watch(billsDatasourceProvider);
   return ds.getBills(
     status: status?.name,
     month: month,
     year: year,
+    categoryId: categoryId,
   );
 }
 
