@@ -512,23 +512,25 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       final userId = _user!.id;
       final bytes = await File(file.path).readAsBytes();
       final ext = file.path.split('.').last.toLowerCase();
-      final path = '$userId/avatar.$ext';
+      // jpg é um alias — o MIME type correto é image/jpeg
+      final mime = (ext == 'jpg') ? 'image/jpeg' : 'image/$ext';
+      final storagePath = '$userId/avatar.${ext == 'jpg' ? 'jpg' : ext}';
 
       // Upload to Supabase Storage bucket "avatars"
       await Supabase.instance.client.storage
           .from('avatars')
           .uploadBinary(
-            path,
+            storagePath,
             bytes,
             fileOptions: FileOptions(
-              contentType: 'image/$ext',
+              contentType: mime,
               upsert: true,
             ),
           );
 
       final url = Supabase.instance.client.storage
           .from('avatars')
-          .getPublicUrl(path);
+          .getPublicUrl(storagePath);
 
       // Bust cache by appending timestamp
       final bustUrl = '$url?t=${DateTime.now().millisecondsSinceEpoch}';
