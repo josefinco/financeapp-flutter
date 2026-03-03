@@ -68,70 +68,19 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      floatingActionButton: _GradientFab(
+        onTap: () => _openCreateSheet(context),
+      ),
       body: NestedScrollView(
         headerSliverBuilder: (context, _) => [
-          // ── Gradient App Bar ────────────────────────────────────────────
+          // ── Sticky month nav ─────────────────────────────────────────────
           SliverAppBar(
             pinned: true,
-            expandedHeight: 100,
-            backgroundColor: Colors.transparent,
+            toolbarHeight: 0,
+            expandedHeight: 0,
+            backgroundColor: isDark ? const Color(0xFF0D0D0F) : Colors.white,
             elevation: 0,
-            actions: [
-              Padding(
-                padding: const EdgeInsets.only(right: 14, top: 8, bottom: 8),
-                child: GestureDetector(
-                  onTap: () => _openCreateSheet(context),
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.18),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.35),
-                        width: 1.5,
-                      ),
-                    ),
-                    child: const Icon(
-                      Icons.add_rounded,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-            flexibleSpace: FlexibleSpaceBar(
-              background: ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  bottom: Radius.circular(28),
-                ),
-                child: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Color(0xFF0B3D2E),
-                        Color(0xFF1B6B45),
-                        Color(0xFF1A3A5C),
-                      ],
-                      stops: [0.0, 0.5, 1.0],
-                    ),
-                  ),
-                ),
-              ),
-              titlePadding: const EdgeInsets.fromLTRB(20, 0, 20, 56),
-              title: const Text(
-                'Lançamentos',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
-                ),
-              ),
-            ),
+            surfaceTintColor: Colors.transparent,
             // ── Month navigation ─────────────────────────────────────────
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(48),
@@ -1145,6 +1094,40 @@ class _TypePill extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ─── Gradient FAB ─────────────────────────────────────────────────────────────
+
+class _GradientFab extends StatelessWidget {
+  final VoidCallback onTap;
+  const _GradientFab({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF1B6B45), Color(0xFF1A3A5C)],
+          ),
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF1B6B45).withOpacity(0.45),
+              blurRadius: 14,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: const Icon(Icons.add_rounded, color: Colors.white, size: 28),
       ),
     );
   }
