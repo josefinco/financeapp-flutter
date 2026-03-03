@@ -42,10 +42,11 @@ GoRouter appRouter(AppRouterRef ref) {
           GoRoute(path: '/categories',    builder: (_, __) => const CategoriesPage()),
           GoRoute(path: '/budgets',       builder: (_, __) => const BudgetsPage()),
           GoRoute(path: '/ai-chat',       builder: (_, __) => const _ComingSoonPage(title: 'Assistente IA')),
-          GoRoute(path: '/profile',       builder: (_, __) => const ProfilePage()),
         ],
       ),
-      GoRoute(path: '/login', builder: (_, __) => const LoginPage()),
+      // Rotas fora do shell (sem bottom nav)
+      GoRoute(path: '/profile', builder: (_, __) => const ProfilePage()),
+      GoRoute(path: '/login',   builder: (_, __) => const LoginPage()),
     ],
   );
 }

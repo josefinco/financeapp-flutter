@@ -309,7 +309,7 @@ class _HeroSection extends ConsumerWidget {
                   const SizedBox(width: 10),
                   // Avatar button with initials
                   GestureDetector(
-                    onTap: () => context.go('/profile'),
+                    onTap: () => context.push('/profile'),
                     child: Container(
                       width: 42,
                       height: 42,
