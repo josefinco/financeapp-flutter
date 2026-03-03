@@ -77,7 +77,17 @@ class _BillsList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final now = DateTime.now();
-    final billsAsync = ref.watch(billsProvider(status: status, month: now.month, year: now.year));
+
+    // Regra de domínio:
+    // - Pendentes e Pagas → filtradas pelo mês vigente
+    // - Vencidas → SEM filtro de mês (exibe todas as não pagas do passado,
+    //   independente do mês em que venceram)
+    final isOverdue = status == BillStatus.overdue;
+    final billsAsync = ref.watch(billsProvider(
+      status: status,
+      month: isOverdue ? null : now.month,
+      year:  isOverdue ? null : now.year,
+    ));
 
     return billsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
