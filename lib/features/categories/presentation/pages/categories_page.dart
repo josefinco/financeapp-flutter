@@ -717,7 +717,7 @@ class _CategorySheetState extends ConsumerState<_CategorySheet> {
 
     final data = {
       'name':  name,
-      'type':  _type.name.toUpperCase(),
+      'type':  _type.name, // backend expects lowercase: "income", "expense", "both"
       'color': colorToHex(_color),
       'icon':  _icon,
     };
