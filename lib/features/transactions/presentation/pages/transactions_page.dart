@@ -77,23 +77,47 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
             backgroundColor: Colors.transparent,
             elevation: 0,
             actions: [
-              IconButton(
-                icon: const Icon(Icons.add_rounded, color: Colors.white),
-                onPressed: () => _openCreateSheet(context),
+              Padding(
+                padding: const EdgeInsets.only(right: 14, top: 8, bottom: 8),
+                child: GestureDetector(
+                  onTap: () => _openCreateSheet(context),
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.18),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.35),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.add_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ),
               ),
             ],
             flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color(0xFF0B3D2E),
-                      Color(0xFF1B6B45),
-                      Color(0xFF1A3A5C),
-                    ],
-                    stops: [0.0, 0.5, 1.0],
+              background: ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(28),
+                ),
+                child: Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color(0xFF0B3D2E),
+                        Color(0xFF1B6B45),
+                        Color(0xFF1A3A5C),
+                      ],
+                      stops: [0.0, 0.5, 1.0],
+                    ),
                   ),
                 ),
               ),
