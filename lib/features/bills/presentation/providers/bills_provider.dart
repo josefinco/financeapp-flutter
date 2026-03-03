@@ -95,6 +95,20 @@ class BillsNotifier extends _$BillsNotifier {
     }
   }
 
+  Future<Bill?> updateBill(String billId, Map<String, dynamic> data) async {
+    state = const AsyncLoading();
+    try {
+      final ds = ref.read(billsDatasourceProvider);
+      final bill = await ds.updateBill(billId, data);
+      state = const AsyncData(null);
+      ref.invalidate(billsProvider);
+      return bill;
+    } catch (e, st) {
+      state = AsyncError(e, st);
+      return null;
+    }
+  }
+
   /// Exclui toda a série recorrente chamando DELETE /bills/{id}?cascade=true
   Future<bool> deleteBillSeries(String billId) async {
     state = const AsyncLoading();

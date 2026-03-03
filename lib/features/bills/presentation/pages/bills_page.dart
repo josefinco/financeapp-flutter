@@ -1268,50 +1268,82 @@ class BillDetailsSheet extends ConsumerWidget {
                   label: 'Observações',
                   value: bill.notes!),
             const SizedBox(height: 24),
-            if (bill.status != BillStatus.paid)
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                        colors: [Color(0xFF1B6B45), Color(0xFF2196F3)]),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: ElevatedButton.icon(
+            // ── Botões de ação ────────────────────────────────────────────
+            Row(
+              children: [
+                // Editar
+                Expanded(
+                  child: OutlinedButton.icon(
                     onPressed: actionState.isLoading
                         ? null
-                        : () async {
-                            final paid = await notifier.markPaid(bill.id);
-                            if (paid != null && context.mounted) {
-                              Navigator.pop(context);
-                              AppFeedback.showSuccess(
-                                  context, 'Conta marcada como paga!');
-                            }
+                        : () {
+                            Navigator.pop(context);
+                            showModalBottomSheet(
+                              context: context,
+                              isScrollControlled: true,
+                              useSafeArea: true,
+                              builder: (_) => EditBillSheet(bill: bill),
+                            );
                           },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.transparent,
-                      shadowColor: Colors.transparent,
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16)),
                     ),
-                    icon: actionState.isLoading
-                        ? const SizedBox(
-                            width: 16, height: 16,
-                            child: CircularProgressIndicator(
-                                color: Colors.white, strokeWidth: 2))
-                        : const Icon(Icons.check_circle_outline_rounded,
-                            color: Colors.white),
-                    label: Text(
-                      actionState.isLoading
-                          ? 'Processando...'
-                          : 'Marcar como Pago',
-                      style: const TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.w700),
-                    ),
+                    icon: const Icon(Icons.edit_rounded, size: 18),
+                    label: const Text('Editar',
+                        style: TextStyle(fontWeight: FontWeight.w700)),
                   ),
                 ),
-              ),
+                if (bill.status != BillStatus.paid) ...[
+                  const SizedBox(width: 12),
+                  // Marcar como pago
+                  Expanded(
+                    flex: 2,
+                    child: SizedBox(
+                      height: 52,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                              colors: [Color(0xFF1B6B45), Color(0xFF2196F3)]),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: ElevatedButton.icon(
+                          onPressed: actionState.isLoading
+                              ? null
+                              : () async {
+                                  final paid = await notifier.markPaid(bill.id);
+                                  if (paid != null && context.mounted) {
+                                    Navigator.pop(context);
+                                    AppFeedback.showSuccess(
+                                        context, 'Conta marcada como paga!');
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16)),
+                          ),
+                          icon: actionState.isLoading
+                              ? const SizedBox(
+                                  width: 16, height: 16,
+                                  child: CircularProgressIndicator(
+                                      color: Colors.white, strokeWidth: 2))
+                              : const Icon(Icons.check_circle_outline_rounded,
+                                  color: Colors.white),
+                          label: Text(
+                            actionState.isLoading ? 'Processando...' : 'Marcar Pago',
+                            style: const TextStyle(
+                                color: Colors.white, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ],
         ),
       ),
@@ -1674,6 +1706,326 @@ class _CreateBillSheetState extends ConsumerState<CreateBillSheet> {
                           : const Icon(Icons.check, color: Colors.white),
                       label: Text(
                           actionState.isLoading ? 'Salvando...' : 'Criar Conta',
+                          style: const TextStyle(color: Colors.white)),
+                    ),
+                  ),
+                ),
+              ]),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _hexColor(String hex) {
+    try { return Color(int.parse(hex.replaceFirst('#', '0xFF'))); }
+    catch (_) { return Colors.grey; }
+  }
+
+  String _recurrenceLabel(RecurrenceType r) => switch (r) {
+        RecurrenceType.none    => 'Sem recorrência',
+        RecurrenceType.daily   => 'Diária',
+        RecurrenceType.weekly  => 'Semanal',
+        RecurrenceType.monthly => 'Mensal',
+        RecurrenceType.yearly  => 'Anual',
+      };
+}
+
+// ─── Edit Bill Sheet ──────────────────────────────────────────────────────────
+
+class EditBillSheet extends ConsumerStatefulWidget {
+  final Bill bill;
+  const EditBillSheet({super.key, required this.bill});
+
+  @override
+  ConsumerState<EditBillSheet> createState() => _EditBillSheetState();
+}
+
+class _EditBillSheetState extends ConsumerState<EditBillSheet> {
+  final _formKey          = GlobalKey<FormState>();
+  late final TextEditingController _nameController;
+  late final TextEditingController _amountController;
+  late final TextEditingController _notesController;
+
+  late DateTime        _dueDate;
+  late String?         _categoryId;
+  late RecurrenceType  _recurrence;
+
+  @override
+  void initState() {
+    super.initState();
+    final b = widget.bill;
+    _nameController   = TextEditingController(text: b.name);
+    _amountController = TextEditingController(
+        text: b.amount.toStringAsFixed(2).replaceAll('.', ','));
+    _notesController  = TextEditingController(text: b.notes ?? '');
+    _dueDate          = b.dueDate;
+    _categoryId       = b.categoryId;
+    _recurrence       = b.recurrence;
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _amountController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dueDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+      locale: const Locale('pt', 'BR'),
+    );
+    if (picked != null) setState(() => _dueDate = picked);
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final rawAmount = _amountController.text.trim();
+    double amount;
+    if (rawAmount.contains(',') && rawAmount.contains('.')) {
+      amount = double.tryParse(
+              rawAmount.replaceAll('.', '').replaceAll(',', '.')) ??
+          0.0;
+    } else {
+      amount = double.tryParse(rawAmount.replaceAll(',', '.')) ?? 0.0;
+    }
+
+    if (amount <= 0) {
+      AppFeedback.showError(context, 'Informe um valor válido maior que zero.');
+      return;
+    }
+
+    final data = <String, dynamic>{
+      'name':       _nameController.text.trim(),
+      'amount':     amount,
+      'due_date':   DateFormat('yyyy-MM-dd').format(_dueDate),
+      'recurrence': _recurrence.name,
+      'category_id': _categoryId,
+      'notes':       _notesController.text.trim().isEmpty
+          ? null
+          : _notesController.text.trim(),
+    };
+
+    final updated = await ref
+        .read(billsNotifierProvider.notifier)
+        .updateBill(widget.bill.id, data);
+
+    if (updated != null && mounted) {
+      Navigator.pop(context);
+      AppFeedback.showSuccess(context, 'Conta "${updated.name}" atualizada!');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final categoriesAsync = ref.watch(categoriesProvider());
+    final actionState     = ref.watch(billsNotifierProvider);
+    final isDark          = Theme.of(context).brightness == Brightness.dark;
+    final dateFmt         = DateFormat('dd/MM/yyyy');
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.88,
+      maxChildSize: 0.96,
+      builder: (_, controller) => Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E1E2C) : Colors.white,
+          borderRadius:
+              const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            controller: controller,
+            padding: EdgeInsets.fromLTRB(
+                24, 0, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+            children: [
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 20),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white24 : Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text('Editar Conta',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+                  ),
+                  // Badge de status atual
+                  _StatusChip(status: widget.bill.status),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // Nome
+              TextFormField(
+                controller: _nameController,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  labelText: 'Nome da conta *',
+                  prefixIcon: Icon(Icons.receipt_long_outlined),
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Informe o nome' : null,
+              ),
+              const SizedBox(height: 16),
+
+              // Valor
+              TextFormField(
+                controller: _amountController,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[\d,.]')),
+                ],
+                decoration: const InputDecoration(
+                  labelText: 'Valor *',
+                  prefixIcon: Icon(Icons.attach_money),
+                  prefixText: 'R\$ ',
+                  border: OutlineInputBorder(),
+                  hintText: '0,00',
+                ),
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return 'Informe o valor';
+                  final parsed = double.tryParse(v.trim().replaceAll(',', '.'));
+                  if (parsed == null || parsed <= 0) return 'Valor inválido';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // Vencimento
+              InkWell(
+                onTap: _pickDate,
+                borderRadius: BorderRadius.circular(4),
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Vencimento *',
+                    prefixIcon: Icon(Icons.calendar_today_outlined),
+                    border: OutlineInputBorder(),
+                    suffixIcon: Icon(Icons.arrow_drop_down),
+                  ),
+                  child: Text(dateFmt.format(_dueDate)),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Categoria
+              categoriesAsync.when(
+                loading: () => const LinearProgressIndicator(),
+                error: (_, __) => const SizedBox.shrink(),
+                data: (cats) => DropdownButtonFormField<String?>(
+                  value: _categoryId,
+                  decoration: const InputDecoration(
+                    labelText: 'Categoria',
+                    prefixIcon: Icon(Icons.label_outline),
+                    border: OutlineInputBorder(),
+                  ),
+                  items: [
+                    const DropdownMenuItem(
+                        value: null, child: Text('Sem categoria')),
+                    ...cats.map((c) => DropdownMenuItem(
+                          value: c.id,
+                          child: Row(children: [
+                            Container(
+                              width: 12,
+                              height: 12,
+                              margin: const EdgeInsets.only(right: 8),
+                              decoration: BoxDecoration(
+                                  color: _hexColor(c.color),
+                                  shape: BoxShape.circle),
+                            ),
+                            Text(c.name),
+                          ]),
+                        )),
+                  ],
+                  onChanged: (v) => setState(() => _categoryId = v),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Recorrência (só editável se não é parcelado)
+              if (widget.bill.totalInstallments == null)
+                Column(children: [
+                  DropdownButtonFormField<RecurrenceType>(
+                    value: _recurrence,
+                    decoration: const InputDecoration(
+                      labelText: 'Recorrência',
+                      prefixIcon: Icon(Icons.repeat),
+                      border: OutlineInputBorder(),
+                    ),
+                    items: RecurrenceType.values
+                        .map((r) => DropdownMenuItem(
+                            value: r, child: Text(_recurrenceLabel(r))))
+                        .toList(),
+                    onChanged: (v) => setState(() => _recurrence = v!),
+                  ),
+                  const SizedBox(height: 16),
+                ]),
+
+              // Observações
+              TextFormField(
+                controller: _notesController,
+                maxLines: 2,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  labelText: 'Observações',
+                  hintText: 'Opcional',
+                  prefixIcon: Icon(Icons.notes_outlined),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 28),
+
+              Row(children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: actionState.isLoading
+                        ? null
+                        : () => Navigator.pop(context),
+                    child: const Text('Cancelar'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                          colors: [Color(0xFF1B6B45), Color(0xFF2196F3)]),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: ElevatedButton.icon(
+                      onPressed: actionState.isLoading ? null : _submit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                      ),
+                      icon: actionState.isLoading
+                          ? const SizedBox(
+                              width: 16, height: 16,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.check, color: Colors.white),
+                      label: Text(
+                          actionState.isLoading ? 'Salvando...' : 'Salvar Alterações',
                           style: const TextStyle(color: Colors.white)),
                     ),
                   ),
