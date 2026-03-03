@@ -698,6 +698,20 @@ class _CreateTransactionSheetState
   String? _walletId;
 
   @override
+  void initState() {
+    super.initState();
+    // Pré-seleciona a primeira carteira assim que os dados estiverem disponíveis
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final walletsAsync = ref.read(walletBalancesProvider);
+      walletsAsync.whenData((data) {
+        if (data.wallets.isNotEmpty && _walletId == null && mounted) {
+          setState(() => _walletId = data.wallets.first.walletId);
+        }
+      });
+    });
+  }
+
+  @override
   void dispose() {
     _descriptionController.dispose();
     _amountController.dispose();
@@ -717,6 +731,12 @@ class _CreateTransactionSheetState
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+
+    // wallet_id é obrigatório no backend
+    if (_walletId == null) {
+      AppFeedback.showError(context, 'Selecione uma carteira.');
+      return;
+    }
 
     final rawAmount = _amountController.text.trim();
     double amount = 0.0;
@@ -739,7 +759,7 @@ class _CreateTransactionSheetState
       'type': _type.name,
       'date': DateFormat('yyyy-MM-dd').format(_date),
       'is_confirmed': true,
-      if (_walletId != null) 'wallet_id': _walletId,
+      'wallet_id': _walletId,                              // sempre presente
       if (_categoryId != null) 'category_id': _categoryId,
     };
 
@@ -887,12 +907,9 @@ class _CreateTransactionSheetState
                 data: (walletsData) {
                   final wallets = walletsData.wallets;
                   if (wallets.isEmpty) return const SizedBox.shrink();
-                  if (_walletId == null && wallets.isNotEmpty) {
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (mounted) {
-                        setState(() => _walletId = wallets.first.walletId);
-                      }
-                    });
+                  // Garante que _walletId nunca seja null se houver carteiras
+                  if (_walletId == null) {
+                    _walletId = wallets.first.walletId;
                   }
                   return DropdownButtonFormField<String>(
                     value: _walletId,
