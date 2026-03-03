@@ -13,6 +13,7 @@ import '../../features/reports/presentation/pages/reports_page.dart';
 import '../../features/categories/presentation/pages/categories_page.dart';
 import '../../features/budgets/presentation/pages/budgets_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
+import '../../features/wallets/presentation/pages/wallets_page.dart';
 
 part 'app_router.g.dart';
 
@@ -38,6 +39,7 @@ GoRouter appRouter(AppRouterRef ref) {
           GoRoute(path: '/',              builder: (_, __) => const DashboardPage()),
           GoRoute(path: '/bills',         builder: (_, __) => const BillsPage()),
           GoRoute(path: '/transactions',  builder: (_, __) => const TransactionsPage()),
+          GoRoute(path: '/wallets',       builder: (_, __) => const WalletsPage()),
           GoRoute(path: '/reports',       builder: (_, __) => const ReportsPage()),
           GoRoute(path: '/categories',    builder: (_, __) => const CategoriesPage()),
           GoRoute(path: '/budgets',       builder: (_, __) => const BudgetsPage()),
@@ -96,14 +98,14 @@ class MainShell extends StatelessWidget {
               label: 'Lançamentos',
             ),
             NavigationDestination(
+              icon: Icon(Icons.account_balance_wallet_outlined),
+              selectedIcon: Icon(Icons.account_balance_wallet_rounded),
+              label: 'Carteiras',
+            ),
+            NavigationDestination(
               icon: Icon(Icons.bar_chart_outlined),
               selectedIcon: Icon(Icons.bar_chart_rounded),
               label: 'Relatórios',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.auto_awesome_outlined),
-              selectedIcon: Icon(Icons.auto_awesome_rounded),
-              label: 'IA',
             ),
           ],
         ),
@@ -115,8 +117,8 @@ class MainShell extends StatelessWidget {
     '/'             => 0,
     '/bills'        => 1,
     '/transactions' => 2,
-    '/reports'      => 3,
-    '/ai-chat'      => 4,
+    '/wallets'      => 3,
+    '/reports'      => 4,
     _               => 0,
   };
 
@@ -125,8 +127,8 @@ class MainShell extends StatelessWidget {
       case 0: context.go('/');
       case 1: context.go('/bills');
       case 2: context.go('/transactions');
-      case 3: context.go('/reports');
-      case 4: context.go('/ai-chat');
+      case 3: context.go('/wallets');
+      case 4: context.go('/reports');
     }
   }
 }
