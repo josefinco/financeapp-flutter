@@ -94,4 +94,19 @@ class BillsNotifier extends _$BillsNotifier {
       return false;
     }
   }
+
+  /// Exclui toda a série recorrente chamando DELETE /bills/{id}?cascade=true
+  Future<bool> deleteBillSeries(String billId) async {
+    state = const AsyncLoading();
+    try {
+      final dio = createDio();
+      await dio.delete('/bills/$billId', queryParameters: {'cascade': true});
+      state = const AsyncData(null);
+      ref.invalidate(billsProvider);
+      return true;
+    } catch (e, st) {
+      state = AsyncError(e, st);
+      return false;
+    }
+  }
 }

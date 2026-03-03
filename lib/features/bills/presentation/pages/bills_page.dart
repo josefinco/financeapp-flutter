@@ -357,18 +357,27 @@ class _BillsList extends ConsumerStatefulWidget {
 }
 
 class _BillsListState extends ConsumerState<_BillsList> {
-  String? _selectedBillId;
+  Bill? _selectedBill;
 
-  void _clearSelection() => setState(() => _selectedBillId = null);
+  void _clearSelection() => setState(() => _selectedBill = null);
 
-  void _toggleSelection(String id) {
-    setState(() => _selectedBillId = _selectedBillId == id ? null : id);
+  void _toggleSelection(Bill bill) {
+    setState(() => _selectedBill = _selectedBill?.id == bill.id ? null : bill);
   }
 
   Future<void> _deleteSelected(BuildContext context) async {
-    final id = _selectedBillId;
-    if (id == null) return;
+    final bill = _selectedBill;
+    if (bill == null) return;
 
+    final isRecurring = bill.recurrence != RecurrenceType.none;
+
+    // Conta recorrente → oferecer opção de excluir série completa
+    if (isRecurring) {
+      await _showDeleteSeriesSheet(context, bill);
+      return;
+    }
+
+    // Conta simples → confirmação direta
     final confirmed = await AppFeedback.confirm(
       context,
       title: 'Excluir conta',
@@ -380,10 +389,41 @@ class _BillsListState extends ConsumerState<_BillsList> {
     if (!confirmed || !mounted) return;
 
     _clearSelection();
-    final ok = await ref.read(billsNotifierProvider.notifier).deleteBill(id);
+    final ok = await ref.read(billsNotifierProvider.notifier).deleteBill(bill.id);
     if (mounted) {
       if (ok) {
         AppFeedback.showSuccess(context, 'Conta excluída.');
+      } else {
+        AppFeedback.showError(context, 'Erro ao excluir conta.');
+      }
+    }
+  }
+
+  Future<void> _showDeleteSeriesSheet(BuildContext context, Bill bill) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final choice = await showModalBottomSheet<_DeleteChoice>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _DeleteSeriesSheet(isDark: isDark),
+    );
+    if (choice == null || !mounted) return;
+
+    _clearSelection();
+    final notifier = ref.read(billsNotifierProvider.notifier);
+    final bool ok;
+    final String successMsg;
+
+    if (choice == _DeleteChoice.series) {
+      ok = await notifier.deleteBillSeries(bill.id);
+      successMsg = 'Série recorrente excluída.';
+    } else {
+      ok = await notifier.deleteBill(bill.id);
+      successMsg = 'Conta excluída.';
+    }
+
+    if (mounted) {
+      if (ok) {
+        AppFeedback.showSuccess(context, successMsg);
       } else {
         AppFeedback.showError(context, 'Erro ao excluir conta.');
       }
@@ -471,7 +511,7 @@ class _BillsListState extends ConsumerState<_BillsList> {
                 Expanded(
                   child: GestureDetector(
                     // Toque fora do card desmarca a seleção
-                    onTap: _selectedBillId != null ? _clearSelection : null,
+                    onTap: _selectedBill != null ? _clearSelection : null,
                     behavior: HitTestBehavior.translucent,
                     child: RefreshIndicator(
                       color: AppTheme.incomeColor,
@@ -482,18 +522,18 @@ class _BillsListState extends ConsumerState<_BillsList> {
                         separatorBuilder: (_, __) => const SizedBox(height: 10),
                         itemBuilder: (_, i) {
                           final bill = bills[i];
-                          final isSelected = _selectedBillId == bill.id;
+                          final isSelected = _selectedBill?.id == bill.id;
                           return BillCard(
                             bill: bill,
                             isSelected: isSelected,
                             onTap: () {
-                              if (_selectedBillId != null) {
+                              if (_selectedBill != null) {
                                 _clearSelection();
                               } else {
                                 _showDetails(context, bill);
                               }
                             },
-                            onLongPress: () => _toggleSelection(bill.id),
+                            onLongPress: () => _toggleSelection(bill),
                           );
                         },
                       ),
@@ -504,7 +544,7 @@ class _BillsListState extends ConsumerState<_BillsList> {
             ),
 
             // ── Barra de exclusão flutuante ──────────────────────────────
-            if (_selectedBillId != null)
+            if (_selectedBill != null)
               Positioned(
                 bottom: 16,
                 left: 24,
@@ -776,6 +816,188 @@ class BillCard extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       builder: (_) => BillDetailsSheet(bill: bill),
+    );
+  }
+}
+
+// ─── Delete choice ────────────────────────────────────────────────────────────
+
+enum _DeleteChoice { single, series }
+
+// ─── Delete series sheet ──────────────────────────────────────────────────────
+
+class _DeleteSeriesSheet extends StatelessWidget {
+  final bool isDark;
+  const _DeleteSeriesSheet({required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF171720) : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Handle
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white24 : Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Ícone + título
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: AppTheme.errorColor.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.delete_rounded,
+                color: AppTheme.errorColor, size: 26),
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            'Excluir conta recorrente',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Esta é uma conta com recorrência. O que deseja excluir?',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13,
+              color: isDark ? Colors.white54 : Colors.grey.shade500,
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Opção: só este mês
+          _DeleteOption(
+            isDark: isDark,
+            icon: Icons.calendar_today_rounded,
+            color: const Color(0xFFFF7043),
+            title: 'Só este mês',
+            subtitle: 'Exclui apenas esta instância. As demais continuam.',
+            onTap: () => Navigator.of(context).pop(_DeleteChoice.single),
+          ),
+          const SizedBox(height: 12),
+
+          // Opção: série completa
+          _DeleteOption(
+            isDark: isDark,
+            icon: Icons.delete_sweep_rounded,
+            color: AppTheme.errorColor,
+            title: 'Excluir toda a série',
+            subtitle: 'Remove esta e todas as demais ocorrências desta conta.',
+            onTap: () => Navigator.of(context).pop(_DeleteChoice.series),
+          ),
+          const SizedBox(height: 12),
+
+          // Cancelar
+          GestureDetector(
+            onTap: () => Navigator.of(context).pop(),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white10 : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Center(
+                child: Text(
+                  'Cancelar',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DeleteOption extends StatelessWidget {
+  final bool isDark;
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _DeleteOption({
+    required this.isDark,
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF0D0D0F) : Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: color.withOpacity(0.25),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: color,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? Colors.white38 : Colors.grey.shade500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios_rounded,
+                size: 14,
+                color: isDark ? Colors.white24 : Colors.grey.shade400),
+          ],
+        ),
+      ),
     );
   }
 }
