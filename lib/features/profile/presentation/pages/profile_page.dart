@@ -1,11 +1,22 @@
+import 'dart:io';
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/app_feedback.dart';
 import '../../../../main.dart';
+
+// ─── Providers ────────────────────────────────────────────────────────────────
+
+/// Refreshes whenever we update user metadata so the UI rebuilds.
+final _userRefreshProvider = StateProvider<int>((ref) => 0);
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({super.key});
@@ -16,46 +27,86 @@ class ProfilePage extends ConsumerStatefulWidget {
 
 class _ProfilePageState extends ConsumerState<ProfilePage> {
   bool _loggingOut = false;
+  bool _uploadingAvatar = false;
 
-  String get _email =>
-      Supabase.instance.client.auth.currentUser?.email ?? 'demo@moneta.app';
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
+  User? get _user => Supabase.instance.client.auth.currentUser;
+
+  String get _email => _user?.email ?? 'demo@moneta.app';
+
+  String get _displayName {
+    final meta = _user?.userMetadata;
+    if (meta != null) {
+      for (final k in ['full_name', 'name', 'display_name']) {
+        final v = meta[k];
+        if (v is String && v.trim().isNotEmpty) return v.trim();
+      }
+    }
+    final local = _email.split('@').first;
+    return _cap(local.split(RegExp(r'[._+\-]')).first);
+  }
+
+  String get _avatarUrl {
+    final meta = _user?.userMetadata;
+    final url = meta?['avatar_url'];
+    return url is String ? url : '';
+  }
 
   String get _initials {
-    final parts = _email.split('@').first.split('.');
+    final parts = _displayName.split(RegExp(r'\s+'));
     if (parts.length >= 2) {
       return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
     }
-    return _email.substring(0, 2).toUpperCase();
+    return _displayName.substring(0, _displayName.length.clamp(0, 2)).toUpperCase();
   }
+
+  static String _cap(String s) =>
+      s.isEmpty ? s : s[0].toUpperCase() + s.substring(1).toLowerCase();
+
+  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(_userRefreshProvider); // rebuild on metadata change
     final themeMode = ref.watch(themeModeProvider);
-    final isDark    = Theme.of(context).brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: CustomScrollView(
         slivers: [
-          // ─── Header ────────────────────────────────────────────────────
           SliverToBoxAdapter(child: _buildHeader(context, isDark)),
-
-          // ─── Sections ──────────────────────────────────────────────────
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ── Conta ──────────────────────────────────────────────
+                  // ── Conta ─────────────────────────────────────────────
                   _SectionTitle(label: 'Conta'),
                   const SizedBox(height: 10),
                   _SettingsCard(
                     isDark: isDark,
                     children: [
                       _SettingsTile(
-                        icon: Icons.email_outlined,
+                        icon: Icons.badge_outlined,
                         iconColor: AppTheme.incomeColor,
+                        label: 'Nome exibido',
+                        trailing: Text(
+                          _displayName,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: isDark ? Colors.white54 : Colors.grey.shade500,
+                          ),
+                        ),
+                        showArrow: true,
+                        onTap: () => _openEditName(context),
+                      ),
+                      _Divider(isDark: isDark),
+                      _SettingsTile(
+                        icon: Icons.email_outlined,
+                        iconColor: const Color(0xFF29B6F6),
                         label: 'E-mail',
                         trailing: Text(
                           _email,
@@ -68,12 +119,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       _Divider(isDark: isDark),
                       _SettingsTile(
                         icon: Icons.lock_outline_rounded,
-                        iconColor: const Color(0xFF29B6F6),
+                        iconColor: const Color(0xFF7E57C2),
                         label: 'Alterar senha',
                         showArrow: true,
                         onTap: () => AppFeedback.showInfo(
                           context,
-                          'Redefinição enviada para ${'$_email'}.',
+                          'Redefinição enviada para $_email.',
                         ),
                       ),
                     ],
@@ -102,7 +153,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
                   const SizedBox(height: 24),
 
-                  // ── Notificações ───────────────────────────────────────
+                  // ── Preferências ───────────────────────────────────────
                   _SectionTitle(label: 'Preferências'),
                   const SizedBox(height: 10),
                   _SettingsCard(
@@ -178,7 +229,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
                   const SizedBox(height: 32),
 
-                  // ── Logout button ──────────────────────────────────────
                   _LogoutButton(
                     loading: _loggingOut,
                     onTap: () => _confirmLogout(context),
@@ -211,7 +261,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
           child: Column(
             children: [
-              // Back button row
+              // Top row: back + title
               Row(
                 children: [
                   GestureDetector(
@@ -224,7 +274,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white.withOpacity(0.18)),
                       ),
-                      child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 16),
+                      child: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      ),
                     ),
                   ),
                   const Spacer(),
@@ -238,60 +292,151 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     ),
                   ),
                   const Spacer(),
-                  const SizedBox(width: 40), // balance
+                  const SizedBox(width: 40),
                 ],
               ),
 
               const SizedBox(height: 28),
 
-              // Avatar
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF4CAF50), Color(0xFF1DE9B6)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF4CAF50).withOpacity(0.4),
-                      blurRadius: 20,
-                      spreadRadius: 2,
+              // Avatar with edit badge
+              GestureDetector(
+                onTap: () => _pickAvatar(context),
+                child: Stack(
+                  children: [
+                    // Avatar circle
+                    Container(
+                      width: 88,
+                      height: 88,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF4CAF50), Color(0xFF1DE9B6)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF4CAF50).withOpacity(0.4),
+                            blurRadius: 20,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.3),
+                          width: 3,
+                        ),
+                      ),
+                      child: ClipOval(
+                        child: _uploadingAvatar
+                            ? const Center(
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2.5,
+                                ),
+                              )
+                            : _avatarUrl.isNotEmpty
+                                ? CachedNetworkImage(
+                                    imageUrl: _avatarUrl,
+                                    fit: BoxFit.cover,
+                                    placeholder: (_, __) => const Center(
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                    errorWidget: (_, __, ___) => Center(
+                                      child: Text(
+                                        _initials,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                : Center(
+                                    child: Text(
+                                      _initials,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 28,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: -0.5,
+                                      ),
+                                    ),
+                                  ),
+                      ),
+                    ),
+
+                    // Camera badge
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.2),
+                              blurRadius: 6,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.camera_alt_rounded,
+                          size: 15,
+                          color: Color(0xFF1B6B45),
+                        ),
+                      ),
                     ),
                   ],
-                  border: Border.all(color: Colors.white.withOpacity(0.3), width: 3),
-                ),
-                child: Center(
-                  child: Text(
-                    _initials,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
                 ),
               ),
 
               const SizedBox(height: 14),
 
-              // Email
-              Text(
-                _email,
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.75),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
+              // Name with edit icon
+              GestureDetector(
+                onTap: () => _openEditName(context),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _displayName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Icon(
+                      Icons.edit_rounded,
+                      size: 14,
+                      color: Colors.white.withOpacity(0.6),
+                    ),
+                  ],
                 ),
               ),
 
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
 
-              // Badge
+              Text(
+                _email,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.65),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(
@@ -315,7 +460,98 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     );
   }
 
-  // ─── Actions ──────────────────────────────────────────────────────────────
+  // ─── Edit name ────────────────────────────────────────────────────────────
+
+  Future<void> _openEditName(BuildContext context) async {
+    final controller = TextEditingController(text: _displayName);
+    final saved = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _EditNameSheet(controller: controller),
+    );
+    if (saved == null || !mounted) return;
+    await _saveName(context, saved.trim());
+  }
+
+  Future<void> _saveName(BuildContext context, String name) async {
+    if (name.isEmpty) return;
+    try {
+      await Supabase.instance.client.auth.updateUser(
+        UserAttributes(data: {'full_name': name}),
+      );
+      ref.read(_userRefreshProvider.notifier).state++;
+      if (mounted) AppFeedback.showSuccess(context, 'Nome atualizado!');
+    } catch (e) {
+      if (mounted) AppFeedback.showError(context, 'Erro ao salvar nome.');
+    }
+  }
+
+  // ─── Pick & upload avatar ─────────────────────────────────────────────────
+
+  Future<void> _pickAvatar(BuildContext context) async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _ImageSourceSheet(),
+    );
+    if (source == null || !mounted) return;
+
+    final picker = ImagePicker();
+    final XFile? file = await picker.pickImage(
+      source: source,
+      maxWidth: 512,
+      maxHeight: 512,
+      imageQuality: 85,
+    );
+    if (file == null || !mounted) return;
+
+    setState(() => _uploadingAvatar = true);
+    try {
+      final userId = _user!.id;
+      final bytes = await File(file.path).readAsBytes();
+      final ext = file.path.split('.').last.toLowerCase();
+      final path = '$userId/avatar.$ext';
+
+      // Upload to Supabase Storage bucket "avatars"
+      await Supabase.instance.client.storage
+          .from('avatars')
+          .uploadBinary(
+            path,
+            bytes,
+            fileOptions: FileOptions(
+              contentType: 'image/$ext',
+              upsert: true,
+            ),
+          );
+
+      final url = Supabase.instance.client.storage
+          .from('avatars')
+          .getPublicUrl(path);
+
+      // Bust cache by appending timestamp
+      final bustUrl = '$url?t=${DateTime.now().millisecondsSinceEpoch}';
+
+      await Supabase.instance.client.auth.updateUser(
+        UserAttributes(data: {'avatar_url': bustUrl}),
+      );
+
+      ref.read(_userRefreshProvider.notifier).state++;
+      if (mounted) AppFeedback.showSuccess(context, 'Foto atualizada!');
+    } catch (e) {
+      if (mounted) {
+        AppFeedback.showError(
+          context,
+          'Erro ao enviar foto. Verifique as permissões do bucket.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingAvatar = false);
+    }
+  }
+
+  // ─── Logout ───────────────────────────────────────────────────────────────
 
   Future<void> _confirmLogout(BuildContext context) async {
     final confirmed = await AppFeedback.confirm(
@@ -338,6 +574,226 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         AppFeedback.showError(context, 'Erro ao sair. Tente novamente.');
       }
     }
+  }
+}
+
+// ─── Edit Name Sheet ──────────────────────────────────────────────────────────
+
+class _EditNameSheet extends StatelessWidget {
+  final TextEditingController controller;
+  const _EditNameSheet({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF171720) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Handle
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white24 : Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            const Text(
+              'Nome exibido',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Este nome aparece no cabeçalho do app.',
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark ? Colors.white54 : Colors.grey.shade500,
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            TextField(
+              controller: controller,
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              decoration: InputDecoration(
+                hintText: 'Seu nome',
+                prefixIcon: const Icon(Icons.badge_outlined, size: 20),
+                filled: true,
+                fillColor: isDark ? const Color(0xFF0D0D0F) : Colors.grey.shade50,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(
+                    color: AppTheme.incomeColor,
+                    width: 1.5,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Save button
+            GestureDetector(
+              onTap: () => Navigator.of(context).pop(controller.text),
+              child: Container(
+                width: double.infinity,
+                height: 52,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF1B6B45), Color(0xFF1A3A5C)],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Center(
+                  child: Text(
+                    'Salvar',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Image Source Sheet ───────────────────────────────────────────────────────
+
+class _ImageSourceSheet extends StatelessWidget {
+  const _ImageSourceSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF171720) : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Handle
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white24 : Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          const Text(
+            'Foto de perfil',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 20),
+
+          _SourceTile(
+            icon: Icons.photo_library_outlined,
+            color: const Color(0xFF29B6F6),
+            label: 'Escolher da galeria',
+            onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+            isDark: isDark,
+          ),
+          const SizedBox(height: 12),
+          _SourceTile(
+            icon: Icons.camera_alt_outlined,
+            color: AppTheme.incomeColor,
+            label: 'Tirar uma foto',
+            onTap: () => Navigator.of(context).pop(ImageSource.camera),
+            isDark: isDark,
+          ),
+          const SizedBox(height: 12),
+          _SourceTile(
+            icon: Icons.delete_outline_rounded,
+            color: AppTheme.errorColor,
+            label: 'Remover foto',
+            onTap: () => Navigator.of(context).pop(),
+            isDark: isDark,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SourceTile extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+  final VoidCallback onTap;
+  final bool isDark;
+
+  const _SourceTile({
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.onTap,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF0D0D0F) : Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isDark ? Colors.white10 : Colors.grey.shade100,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 18),
+            ),
+            const SizedBox(width: 14),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -377,7 +833,13 @@ class _SettingsCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         boxShadow: isDark
             ? []
-            : [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 12, offset: const Offset(0, 3))],
+            : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 12,
+                  offset: const Offset(0, 3),
+                )
+              ],
       ),
       child: Column(children: children),
     );
@@ -426,7 +888,10 @@ class _SettingsTile extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyLarge
+                    ?.copyWith(fontWeight: FontWeight.w500),
               ),
             ),
             if (trailing != null) trailing!,
@@ -538,7 +1003,9 @@ class _ThemeBtn extends StatelessWidget {
           child: Icon(
             icon,
             size: 16,
-            color: selected ? Colors.white : (isDark ? Colors.white54 : Colors.grey.shade600),
+            color: selected
+                ? Colors.white
+                : (isDark ? Colors.white54 : Colors.grey.shade600),
           ),
         ),
       ),
@@ -570,7 +1037,10 @@ class _LogoutButton extends StatelessWidget {
               ? const SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(color: AppTheme.errorColor, strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                    color: AppTheme.errorColor,
+                    strokeWidth: 2,
+                  ),
                 )
               : const Row(
                   mainAxisSize: MainAxisSize.min,

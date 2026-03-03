@@ -60,6 +60,7 @@ dependencies:
   logger: ^2.4.0
   flutter_dotenv: ^5.2.1
   path_provider: ^2.1.4
+  image_picker: ^1.1.2
   share_plus: ^10.0.2
   url_launcher: ^6.3.0
 
