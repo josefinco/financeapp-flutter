@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../bills/domain/entities/bill.dart';
 import '../../../bills/presentation/providers/bills_provider.dart';
 import '../../../bills/presentation/pages/bills_page.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -12,11 +13,21 @@ class DashboardPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final now           = DateTime.now();
-    final billsAsync    = ref.watch(billsProvider(month: now.month, year: now.year));
+    final now = DateTime.now();
+
+    // Pending bills filtered by current month
+    final pendingAsync = ref.watch(billsProvider(
+      status: BillStatus.pending,
+      month: now.month,
+      year: now.year,
+    ));
+
+    // All overdue bills — filtered client-side to current month for the summary
+    final overdueAsync = ref.watch(billsProvider(status: BillStatus.overdue));
+
     final upcomingAsync = ref.watch(upcomingBillsProvider(days: 7));
-    final currencyFmt   = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
-    final monthName     = _cap(DateFormat('MMMM', 'pt_BR').format(now));
+    final currencyFmt = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
+    final monthName = _cap(DateFormat('MMMM', 'pt_BR').format(now));
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -28,16 +39,18 @@ class DashboardPage extends ConsumerWidget {
         },
         child: CustomScrollView(
           slivers: [
-            // ─── Full hero header (gradient + stat cards inside) ─────────
+            // ─── Hero header ─────────────────────────────────────────────
             SliverToBoxAdapter(
               child: _HeroSection(
-                billsAsync: billsAsync,
+                pendingAsync: pendingAsync,
+                overdueAsync: overdueAsync,
                 currencyFmt: currencyFmt,
                 monthName: monthName,
+                now: now,
               ),
             ),
 
-            // ─── Upcoming bills section ──────────────────────────────────
+            // ─── Upcoming bills header ────────────────────────────────────
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
@@ -46,11 +59,16 @@ class DashboardPage extends ConsumerWidget {
                   children: [
                     Text(
                       'Próximos 7 dias',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                     upcomingAsync.maybeWhen(
                       data: (bills) => bills.isNotEmpty
-                          ? _CountBadge(count: bills.length, color: AppTheme.pendingColor)
+                          ? _CountBadge(
+                              count: bills.length,
+                              color: AppTheme.pendingColor)
                           : const SizedBox(),
                       orElse: () => const SizedBox(),
                     ),
@@ -59,7 +77,7 @@ class DashboardPage extends ConsumerWidget {
               ),
             ),
 
-            // ─── Bills list ──────────────────────────────────────────────
+            // ─── Upcoming bills list ──────────────────────────────────────
             upcomingAsync.when(
               loading: () => const SliverToBoxAdapter(
                 child: Center(
@@ -102,37 +120,57 @@ class DashboardPage extends ConsumerWidget {
     );
   }
 
-  static String _cap(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+  static String _cap(String s) =>
+      s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 }
 
-// ─── Hero Section (gradient header + stats) ───────────────────────────────────
+// ─── Hero Section ──────────────────────────────────────────────────────────────
 
-class _HeroSection extends StatelessWidget {
-  final AsyncValue<dynamic> billsAsync;
+class _HeroSection extends ConsumerWidget {
+  final AsyncValue<dynamic> pendingAsync;
+  final AsyncValue<dynamic> overdueAsync;
   final NumberFormat currencyFmt;
   final String monthName;
+  final DateTime now;
 
   const _HeroSection({
-    required this.billsAsync,
+    required this.pendingAsync,
+    required this.overdueAsync,
     required this.currencyFmt,
     required this.monthName,
+    required this.now,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final hour = DateTime.now().hour;
-    final greeting = hour < 12 ? 'Bom dia ☀️' : hour < 18 ? 'Boa tarde 🌤' : 'Boa noite 🌙';
+    final greeting =
+        hour < 12 ? 'Bom dia ☀️' : hour < 18 ? 'Boa tarde 🌤' : 'Boa noite 🌙';
 
-    final totalAmount = billsAsync.maybeWhen(
-      data: (res) => currencyFmt.format(res.totalPendingAmount),
-      orElse: () => '---',
+    // Pending this month
+    final pendingBills = pendingAsync.maybeWhen(
+      data: (res) => res.items as List<Bill>,
+      orElse: () => <Bill>[],
     );
-    final pendingAmount = billsAsync.maybeWhen(
-      data: (res) => currencyFmt.format(res.totalPendingAmount),
-      orElse: () => '--',
+    final pendingCount = pendingBills.length;
+    final pendingAmount =
+        pendingBills.fold(0.0, (s, b) => s + b.amount);
+
+    // Overdue scoped to this month (client-side filter)
+    final overdueBills = overdueAsync.maybeWhen(
+      data: (res) => (res.items as List<Bill>)
+          .where(
+              (b) => b.dueDate.month == now.month && b.dueDate.year == now.year)
+          .toList(),
+      orElse: () => <Bill>[],
     );
-    final overdueCount  = billsAsync.maybeWhen(data: (res) => res.overdueCount,  orElse: () => 0);
-    final pendingCount  = billsAsync.maybeWhen(data: (res) => res.pendingCount,   orElse: () => 0);
+    final overdueCount = overdueBills.length;
+    final overdueAmount =
+        overdueBills.fold(0.0, (s, b) => s + b.amount);
+
+    // Total unpaid this month = pending + overdue
+    final totalUnpaid = pendingAmount + overdueAmount;
+    final isLoading = pendingAsync.isLoading || overdueAsync.isLoading;
 
     return Container(
       decoration: const BoxDecoration(
@@ -196,9 +234,9 @@ class _HeroSection extends StatelessWidget {
 
               const SizedBox(height: 28),
 
-              // ── Balance ────────────────────────────────────────────────
+              // ── Main total ─────────────────────────────────────────────
               Text(
-                'Total a pagar em $monthName',
+                'Em aberto em $monthName',
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.55),
                   fontSize: 12,
@@ -207,26 +245,29 @@ class _HeroSection extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 6),
-              billsAsync.when(
-                loading: () => const SizedBox(
-                  height: 44,
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white54, strokeWidth: 2)),
-                  ),
-                ),
-                error: (_, __) => const SizedBox(),
-                data: (_) => Text(
-                  totalAmount,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 36,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -1.5,
-                    height: 1.1,
-                  ),
-                ),
-              ),
+              isLoading
+                  ? const SizedBox(
+                      height: 44,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                              color: Colors.white54, strokeWidth: 2),
+                        ),
+                      ),
+                    )
+                  : Text(
+                      currencyFmt.format(totalUnpaid),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 36,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -1.5,
+                        height: 1.1,
+                      ),
+                    ),
 
               const SizedBox(height: 22),
 
@@ -268,39 +309,187 @@ class _HeroSection extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
-              // ── Stat cards (glassmorphism on gradient) ─────────────────
+              // ── Status cards ──────────────────────────────────────────
               Row(
                 children: [
-                  _GlassStatCard(
-                    label: 'A Pagar',
-                    value: pendingAmount,
-                    icon: Icons.payments_outlined,
-                    iconColor: const Color(0xFFFFD54F),
-                    flex: 5,
+                  // A Pagar card
+                  Expanded(
+                    child: _BillStatusCard(
+                      label: 'A Pagar',
+                      sublabel: 'Este mês',
+                      icon: Icons.payments_outlined,
+                      accentColor: const Color(0xFFFFD54F),
+                      count: pendingCount,
+                      amount: pendingAmount,
+                      currencyFmt: currencyFmt,
+                      isLoading: pendingAsync.isLoading,
+                      onTap: () => context.go('/bills'),
+                    ),
                   ),
                   const SizedBox(width: 10),
-                  _GlassStatCard(
-                    label: 'Vencidas',
-                    value: overdueCount.toString(),
-                    icon: Icons.warning_amber_rounded,
-                    iconColor: const Color(0xFFFF7043),
-                    flex: 3,
-                  ),
-                  const SizedBox(width: 10),
-                  _GlassStatCard(
-                    label: 'Pendentes',
-                    value: pendingCount.toString(),
-                    icon: Icons.hourglass_top_rounded,
-                    iconColor: const Color(0xFF81C784),
-                    flex: 3,
+                  // Vencidas card
+                  Expanded(
+                    child: _BillStatusCard(
+                      label: 'Vencidas',
+                      sublabel: 'Este mês',
+                      icon: Icons.warning_amber_rounded,
+                      accentColor: const Color(0xFFFF7043),
+                      count: overdueCount,
+                      amount: overdueAmount,
+                      currencyFmt: currencyFmt,
+                      isLoading: overdueAsync.isLoading,
+                      urgent: overdueCount > 0,
+                      onTap: () => context.go('/bills'),
+                    ),
                   ),
                 ],
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ─── Bill Status Card (glassmorphism) ─────────────────────────────────────────
+
+class _BillStatusCard extends StatelessWidget {
+  final String label;
+  final String sublabel;
+  final IconData icon;
+  final Color accentColor;
+  final int count;
+  final double amount;
+  final NumberFormat currencyFmt;
+  final bool isLoading;
+  final bool urgent;
+  final VoidCallback onTap;
+
+  const _BillStatusCard({
+    required this.label,
+    required this.sublabel,
+    required this.icon,
+    required this.accentColor,
+    required this.count,
+    required this.amount,
+    required this.currencyFmt,
+    required this.isLoading,
+    required this.onTap,
+    this.urgent = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final borderColor = urgent
+        ? accentColor.withOpacity(0.45)
+        : Colors.white.withOpacity(0.16);
+    final bgColor = urgent
+        ? accentColor.withOpacity(0.14)
+        : Colors.white.withOpacity(0.10);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: borderColor, width: 1),
+        ),
+        child: isLoading
+            ? const Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                      color: Colors.white54, strokeWidth: 2),
+                ),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Icon row with optional urgent dot
+                  Row(
+                    children: [
+                      Icon(icon, color: accentColor, size: 18),
+                      const Spacer(),
+                      if (urgent && count > 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: accentColor.withOpacity(0.25),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '$count',
+                            style: TextStyle(
+                              color: accentColor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        )
+                      else if (count > 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '$count',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.7),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  // Amount
+                  Text(
+                    count == 0 ? 'R\$ 0,00' : currencyFmt.format(amount),
+                    style: TextStyle(
+                      color: count == 0
+                          ? Colors.white.withOpacity(0.35)
+                          : Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.4,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 3),
+                  // Label
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.8),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  // Sublabel: count + scope
+                  Text(
+                    count == 0
+                        ? sublabel
+                        : '$count ${count == 1 ? 'conta' : 'contas'} · $sublabel',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.45),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }
@@ -327,67 +516,6 @@ class _GlassButton extends StatelessWidget {
           border: Border.all(color: Colors.white.withOpacity(0.18)),
         ),
         child: Icon(icon, color: Colors.white, size: 20),
-      ),
-    );
-  }
-}
-
-// ─── Glass stat card ──────────────────────────────────────────────────────────
-
-class _GlassStatCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color iconColor;
-  final int flex;
-
-  const _GlassStatCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.iconColor,
-    this.flex = 1,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      flex: flex,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.16), width: 1),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: iconColor, size: 18),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.5,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.55),
-                fontSize: 10,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 0.2,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -453,7 +581,8 @@ class _CountBadge extends StatelessWidget {
       ),
       child: Text(
         '$count',
-        style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w700),
+        style: TextStyle(
+            color: color, fontSize: 12, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -471,9 +600,14 @@ class _EmptyState extends StatelessWidget {
         color: isDark ? const Color(0xFF171720) : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppTheme.paidColor.withOpacity(0.2)),
-        boxShadow: isDark ? [] : [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4)),
-        ],
+        boxShadow: isDark
+            ? []
+            : [
+                BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4)),
+              ],
       ),
       child: Column(
         children: [
@@ -483,10 +617,15 @@ class _EmptyState extends StatelessWidget {
               color: AppTheme.paidColor.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.check_circle_outline_rounded, size: 32, color: AppTheme.paidColor),
+            child: const Icon(Icons.check_circle_outline_rounded,
+                size: 32, color: AppTheme.paidColor),
           ),
           const SizedBox(height: 14),
-          Text('Tudo em dia! 🎉', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+          Text('Tudo em dia! 🎉',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleSmall
+                  ?.copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: 6),
           Text(
             'Nenhuma conta nos próximos 7 dias',
@@ -516,9 +655,13 @@ class _ErrorBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline_rounded, color: AppTheme.errorColor, size: 20),
+          const Icon(Icons.error_outline_rounded,
+              color: AppTheme.errorColor, size: 20),
           const SizedBox(width: 10),
-          Expanded(child: Text(message, style: const TextStyle(color: AppTheme.errorColor, fontSize: 13))),
+          Expanded(
+              child: Text(message,
+                  style: const TextStyle(
+                      color: AppTheme.errorColor, fontSize: 13))),
         ],
       ),
     );
