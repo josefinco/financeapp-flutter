@@ -83,7 +83,7 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
             surfaceTintColor: Colors.transparent,
             // ── Month navigation ─────────────────────────────────────────
             bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(48),
+              preferredSize: const Size.fromHeight(64),
               child: Container(
                 color: isDark ? const Color(0xFF0D0D0F) : Colors.white,
                 padding:

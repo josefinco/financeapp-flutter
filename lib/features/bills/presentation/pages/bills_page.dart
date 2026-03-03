@@ -76,7 +76,7 @@ class _BillsPageState extends ConsumerState<BillsPage>
             elevation: 0,
             surfaceTintColor: Colors.transparent,
             bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(96),
+              preferredSize: const Size.fromHeight(112),
               child: Column(
                 children: [
                   // Month navigation
