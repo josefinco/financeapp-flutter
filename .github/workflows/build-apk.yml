@@ -82,20 +82,19 @@ jobs:
         run: dart run build_runner build --delete-conflicting-outputs
 
       # ─── 10. Build release APK ────────────────────────────────────────────
-      # Split per ABI keeps each APK well below Telegram's 50 MB limit.
       - name: Build APK
-        run: flutter build apk --release --split-per-abi
+        run: flutter build apk --release
 
       # ─── 11. Upload APK artifact ──────────────────────────────────────────
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: moneta-release-${{ github.sha }}
-          path: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 14
 
-      # ─── 12. Send APK via Telegram ────────────────────────────────────────
-      - name: Send APK to Telegram
+      # ─── 12. Upload APK to file.io and send link via Telegram ─────────────
+      - name: Send APK link via Telegram
         if: success()
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -105,21 +104,26 @@ jobs:
           SHORT_SHA="${SHORT_SHA:0:7}"
           COMMIT_MSG=$(echo "${{ github.event.head_commit.message }}" | head -1)
           TIMESTAMP=$(date -u '+%d/%m/%Y %H:%M UTC')
-          APK="build/app/outputs/flutter-apk/app-arm64-v8a-release.apk"
+          APK="build/app/outputs/flutter-apk/app-release.apk"
 
-          CAPTION="✅ Moneta APK Build OK
+          DOWNLOAD_URL=$(curl -s -F "file=@${APK}" "https://file.io/?expires=7d" | python3 -c "import sys,json; print(json.load(sys.stdin)['link'])")
 
-          Branch: ${{ github.ref_name }}
-          Commit: ${SHORT_SHA}
-          Author: ${{ github.actor }}
-          Data: ${TIMESTAMP}
-          Mensagem: ${COMMIT_MSG}"
+          TEXT="✅ Moneta APK Build OK
+
+Branch: ${{ github.ref_name }}
+Commit: ${SHORT_SHA}
+Author: ${{ github.actor }}
+Data: ${TIMESTAMP}
+Mensagem: ${COMMIT_MSG}
+
+⬇️ Download APK: ${DOWNLOAD_URL}
+⚠️ Link expira em 7 dias (uso único)"
 
           curl --fail-with-body \
-            -F "chat_id=${TELEGRAM_CHAT_ID}" \
-            -F "document=@${APK}" \
-            -F "caption=${CAPTION}" \
-            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument"
+            -X POST \
+            -H "Content-Type: application/json" \
+            -d "{\"chat_id\":\"${TELEGRAM_CHAT_ID}\",\"text\":$(echo "$TEXT" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")}" \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage"
 
       # ─── 13. Failure notification ─────────────────────────────────────────
       - name: Notify Telegram on failure
