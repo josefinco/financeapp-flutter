@@ -303,7 +303,16 @@ class _TransactionsBody extends ConsumerWidget {
                     ],
                   ),
                 ),
-                child: _TransactionCard(transaction: tx, currFmt: currFmt),
+                child: _TransactionCard(
+                  transaction: tx,
+                  currFmt: currFmt,
+                  onTap: () => showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    useSafeArea: true,
+                    builder: (_) => EditTransactionSheet(transaction: tx),
+                  ),
+                ),
               );
             },
           ),
@@ -497,8 +506,13 @@ class _SummaryTile extends StatelessWidget {
 class _TransactionCard extends StatelessWidget {
   final Transaction transaction;
   final NumberFormat currFmt;
+  final VoidCallback? onTap;
 
-  const _TransactionCard({required this.transaction, required this.currFmt});
+  const _TransactionCard({
+    required this.transaction,
+    required this.currFmt,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -506,66 +520,73 @@ class _TransactionCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final prefix = transaction.type == TransactionType.income ? '+' : '−';
 
-    return Ink(
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF171720) : Colors.white,
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: color.withOpacity(0.15)),
-        boxShadow: isDark
-            ? []
-            : [
-                BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3))
-              ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-        child: Row(
-          children: [
-            // Icon
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(13),
-              ),
-              child:
-                  Icon(_typeIcon(transaction.type), color: color, size: 20),
-            ),
-            const SizedBox(width: 12),
-            // Description + chip
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    transaction.description,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+        onTap: onTap,
+        child: Ink(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF171720) : Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: color.withOpacity(0.15)),
+            boxShadow: isDark
+                ? []
+                : [
+                    BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3))
+                  ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            child: Row(
+              children: [
+                // Icon
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(13),
                   ),
-                  const SizedBox(height: 4),
-                  _TypeChip(type: transaction.type),
-                ],
-              ),
+                  child: Icon(_typeIcon(transaction.type), color: color, size: 20),
+                ),
+                const SizedBox(width: 12),
+                // Description + chip
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        transaction.description,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      _TypeChip(type: transaction.type),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                // Amount
+                Text(
+                  '$prefix ${currFmt.format(transaction.amount)}',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: color,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 10),
-            // Amount
-            Text(
-              '$prefix ${currFmt.format(transaction.amount)}',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-                color: color,
-                letterSpacing: -0.5,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -1113,6 +1134,381 @@ class _TypePill extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+// ─── Edit Transaction Sheet ───────────────────────────────────────────────────
+
+class EditTransactionSheet extends ConsumerStatefulWidget {
+  final Transaction transaction;
+  const EditTransactionSheet({super.key, required this.transaction});
+
+  @override
+  ConsumerState<EditTransactionSheet> createState() =>
+      _EditTransactionSheetState();
+}
+
+class _EditTransactionSheetState extends ConsumerState<EditTransactionSheet> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _descriptionController;
+  late final TextEditingController _amountController;
+
+  late TransactionType _type;
+  late DateTime _date;
+  late String? _categoryId;
+  late String? _walletId;
+
+  @override
+  void initState() {
+    super.initState();
+    final tx = widget.transaction;
+    _descriptionController = TextEditingController(text: tx.description);
+    _amountController = TextEditingController(
+        text: tx.amount.toStringAsFixed(2).replaceAll('.', ','));
+    _type       = tx.type;
+    _date       = tx.date;
+    _categoryId = tx.categoryId;
+    _walletId   = tx.walletId;
+  }
+
+  @override
+  void dispose() {
+    _descriptionController.dispose();
+    _amountController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _date,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+      locale: const Locale('pt', 'BR'),
+    );
+    if (picked != null) setState(() => _date = picked);
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    if (_walletId == null) {
+      AppFeedback.showError(context, 'Selecione uma carteira.');
+      return;
+    }
+
+    final rawAmount = _amountController.text.trim();
+    double amount;
+    if (rawAmount.contains(',') && rawAmount.contains('.')) {
+      amount = double.tryParse(
+              rawAmount.replaceAll('.', '').replaceAll(',', '.')) ??
+          0.0;
+    } else {
+      amount = double.tryParse(rawAmount.replaceAll(',', '.')) ?? 0.0;
+    }
+
+    if (amount <= 0) {
+      AppFeedback.showError(context, 'Informe um valor válido maior que zero.');
+      return;
+    }
+
+    final data = <String, dynamic>{
+      'description': _descriptionController.text.trim(),
+      'amount':      amount,
+      'type':        _type.name,
+      'date':        DateFormat('yyyy-MM-dd').format(_date),
+      'wallet_id':   _walletId,
+      'category_id': _categoryId,
+    };
+
+    final result = await ref
+        .read(transactionsNotifierProvider.notifier)
+        .updateTransaction(widget.transaction.id, data);
+
+    if (mounted) {
+      if (result != null) {
+        Navigator.pop(context);
+        AppFeedback.showSuccess(context, 'Lançamento atualizado!');
+      } else {
+        AppFeedback.showError(context, 'Erro ao atualizar lançamento.');
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final categoriesAsync = ref.watch(categoriesProvider());
+    final walletsAsync    = ref.watch(walletBalancesProvider);
+    final actionState     = ref.watch(transactionsNotifierProvider);
+    final isDark          = Theme.of(context).brightness == Brightness.dark;
+    final dateFmt         = DateFormat('dd/MM/yyyy');
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.85,
+      maxChildSize: 0.96,
+      builder: (_, controller) => Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E1E2C) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            controller: controller,
+            padding: EdgeInsets.fromLTRB(
+                24, 0, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+            children: [
+              // Handle
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 20),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white24 : Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Editar Lançamento',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800, letterSpacing: -0.5),
+                    ),
+                  ),
+                  _TypeChip(type: widget.transaction.type),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // ── Type selector ─────────────────────────────────────────────
+              Container(
+                height: 44,
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF0D0D0F)
+                      : const Color(0xFFF2F5F9),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  children: [
+                    _TypePill(
+                      type: TransactionType.expense,
+                      selected: _type == TransactionType.expense,
+                      onTap: () => setState(() => _type = TransactionType.expense),
+                    ),
+                    _TypePill(
+                      type: TransactionType.income,
+                      selected: _type == TransactionType.income,
+                      onTap: () => setState(() => _type = TransactionType.income),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // ── Description ───────────────────────────────────────────────
+              TextFormField(
+                controller: _descriptionController,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  labelText: 'Descrição *',
+                  prefixIcon: Icon(Icons.edit_note_rounded),
+                ),
+                validator: (v) => (v == null || v.trim().isEmpty)
+                    ? 'Informe a descrição'
+                    : null,
+              ),
+              const SizedBox(height: 14),
+
+              // ── Amount ────────────────────────────────────────────────────
+              TextFormField(
+                controller: _amountController,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[\d,.]')),
+                ],
+                decoration: const InputDecoration(
+                  labelText: 'Valor *',
+                  prefixIcon: Icon(Icons.attach_money_rounded),
+                  prefixText: 'R\$ ',
+                  hintText: '0,00',
+                ),
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return 'Informe o valor';
+                  final p = double.tryParse(v.trim().replaceAll(',', '.'));
+                  if (p == null || p <= 0) return 'Valor inválido';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 14),
+
+              // ── Date ──────────────────────────────────────────────────────
+              InkWell(
+                onTap: _pickDate,
+                borderRadius: BorderRadius.circular(14),
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Data *',
+                    prefixIcon: Icon(Icons.calendar_today_outlined),
+                    suffixIcon: Icon(Icons.arrow_drop_down),
+                  ),
+                  child: Text(dateFmt.format(_date)),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // ── Wallet selector ───────────────────────────────────────────
+              walletsAsync.when(
+                loading: () => const LinearProgressIndicator(),
+                error: (_, __) => const SizedBox.shrink(),
+                data: (walletsData) {
+                  final wallets = walletsData.wallets;
+                  if (wallets.isEmpty) return const SizedBox.shrink();
+                  if (_walletId == null && wallets.isNotEmpty) {
+                    _walletId = wallets.first.walletId;
+                  }
+                  return DropdownButtonFormField<String>(
+                    value: _walletId,
+                    decoration: const InputDecoration(
+                      labelText: 'Carteira',
+                      prefixIcon:
+                          Icon(Icons.account_balance_wallet_outlined),
+                    ),
+                    items: wallets
+                        .map((w) => DropdownMenuItem(
+                              value: w.walletId,
+                              child: Row(children: [
+                                Icon(_walletIcon(w.walletType),
+                                    size: 16, color: AppTheme.incomeColor),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                    child: Text(w.walletName,
+                                        overflow: TextOverflow.ellipsis)),
+                                const SizedBox(width: 8),
+                                Text(
+                                  NumberFormat.currency(
+                                          locale: 'pt_BR', symbol: 'R\$')
+                                      .format(w.balance),
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      color: isDark
+                                          ? Colors.white38
+                                          : Colors.grey.shade500),
+                                ),
+                              ]),
+                            ))
+                        .toList(),
+                    onChanged: (v) => setState(() => _walletId = v),
+                  );
+                },
+              ),
+              const SizedBox(height: 14),
+
+              // ── Category ──────────────────────────────────────────────────
+              categoriesAsync.when(
+                loading: () => const LinearProgressIndicator(),
+                error: (_, __) => const SizedBox.shrink(),
+                data: (cats) => DropdownButtonFormField<String?>(
+                  value: _categoryId,
+                  decoration: const InputDecoration(
+                    labelText: 'Categoria',
+                    prefixIcon: Icon(Icons.label_outline_rounded),
+                  ),
+                  items: [
+                    const DropdownMenuItem(
+                        value: null, child: Text('Sem categoria')),
+                    ...cats.map((c) => DropdownMenuItem(
+                          value: c.id,
+                          child: Row(children: [
+                            Container(
+                              width: 10,
+                              height: 10,
+                              margin: const EdgeInsets.only(right: 8),
+                              decoration: BoxDecoration(
+                                  color: _hexColor(c.color),
+                                  shape: BoxShape.circle),
+                            ),
+                            Text(c.name),
+                          ]),
+                        )),
+                  ],
+                  onChanged: (v) => setState(() => _categoryId = v),
+                ),
+              ),
+              const SizedBox(height: 28),
+
+              // ── Buttons ───────────────────────────────────────────────────
+              Row(children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: actionState.isLoading
+                        ? null
+                        : () => Navigator.pop(context),
+                    child: const Text('Cancelar'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                          colors: [Color(0xFF1B6B45), Color(0xFF2196F3)]),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: ElevatedButton.icon(
+                      onPressed: actionState.isLoading ? null : _submit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
+                      icon: actionState.isLoading
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.check_rounded,
+                              color: Colors.white),
+                      label: Text(
+                        actionState.isLoading
+                            ? 'Salvando...'
+                            : 'Salvar Alterações',
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ),
+              ]),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  IconData _walletIcon(String type) => switch (type.toLowerCase()) {
+        'checking' || 'corrente' => Icons.account_balance_outlined,
+        'savings' || 'poupanca' || 'poupança' => Icons.savings_outlined,
+        'investment' || 'investimento' => Icons.trending_up_rounded,
+        _ => Icons.account_balance_wallet_outlined,
+      };
+
+  Color _hexColor(String hex) {
+    try {
+      return Color(int.parse(hex.replaceFirst('#', '0xFF')));
+    } catch (_) {
+      return Colors.grey;
+    }
   }
 }
 

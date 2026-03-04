@@ -46,6 +46,20 @@ class TransactionsNotifier extends _$TransactionsNotifier {
     }
   }
 
+  Future<Transaction?> updateTransaction(String id, Map<String, dynamic> data) async {
+    state = const AsyncLoading();
+    try {
+      final ds = ref.read(transactionsDatasourceProvider);
+      final tx = await ds.updateTransaction(id, data);
+      state = const AsyncData(null);
+      ref.invalidate(transactionsProvider);
+      return tx;
+    } catch (e, st) {
+      state = AsyncError(e, st);
+      return null;
+    }
+  }
+
   Future<bool> deleteTransaction(String id) async {
     state = const AsyncLoading();
     try {
