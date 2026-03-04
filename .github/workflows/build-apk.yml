@@ -93,7 +93,7 @@ jobs:
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 14
 
-      # ─── 12. Upload APK to file.io and send link via Telegram ─────────────
+      # ─── 12. Upload APK to 0x0.st and send link via Telegram ─────────────
       - name: Send APK link via Telegram
         if: success()
         env:
@@ -106,9 +106,9 @@ jobs:
           TIMESTAMP=$(date -u '+%d/%m/%Y %H:%M UTC')
           APK="build/app/outputs/flutter-apk/app-release.apk"
 
-          DOWNLOAD_URL=$(curl -s -F "file=@${APK}" "https://file.io/?expires=7d" | python3 -c "import sys,json; print(json.load(sys.stdin)['link'])")
+          DOWNLOAD_URL=$(curl -s -F "file=@${APK}" "https://0x0.st")
 
-          TEXT=$(printf '✅ Moneta APK Build OK\n\nBranch: %s\nCommit: %s\nAuthor: %s\nData: %s\nMensagem: %s\n\n⬇️ Download APK: %s\n⚠️ Link expira em 7 dias (uso único)' \
+          TEXT=$(printf '✅ Moneta APK Build OK\n\nBranch: %s\nCommit: %s\nAuthor: %s\nData: %s\nMensagem: %s\n\n⬇️ Download APK: %s\n⚠️ Link expira em 30 dias' \
             "${{ github.ref_name }}" "${SHORT_SHA}" "${{ github.actor }}" "${TIMESTAMP}" "${COMMIT_MSG}" "${DOWNLOAD_URL}")
 
           curl --fail-with-body \
