@@ -60,16 +60,12 @@ jobs:
 
       - name: Send link via Telegram
         run: |
-          TEXT="📱 *Moneta — Novo Build*
-
-🔖 Commit: \`${{ steps.commit.outputs.sha_short }}\`
-💬 Mensagem: ${{ steps.commit.outputs.message }}
-👤 Autor: ${{ steps.commit.outputs.author }}
-🌿 Branch: \`main\`
-🕐 Data: $(date +'%d/%m/%Y %H:%M') UTC
-
-⬇️ [Baixar APK \(arm64\)](${{ steps.upload.outputs.download_url }})
-⚠️ _Link expira em 14 dias_"
+          TEXT=$(printf '📱 *Moneta — Novo Build*\n\n🔖 Commit: `%s`\n💬 Mensagem: %s\n👤 Autor: %s\n🌿 Branch: `main`\n🕐 Data: %s UTC\n\n⬇️ [Baixar APK (arm64)](%s)\n⚠️ _Link expira em 14 dias_' \
+            "${{ steps.commit.outputs.sha_short }}" \
+            "${{ steps.commit.outputs.message }}" \
+            "${{ steps.commit.outputs.author }}" \
+            "$(date +'%d/%m/%Y %H:%M')" \
+            "${{ steps.upload.outputs.download_url }}")
 
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
             -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
