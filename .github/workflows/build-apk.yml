@@ -108,16 +108,8 @@ jobs:
 
           DOWNLOAD_URL=$(curl -s -F "file=@${APK}" "https://file.io/?expires=7d" | python3 -c "import sys,json; print(json.load(sys.stdin)['link'])")
 
-          TEXT="✅ Moneta APK Build OK
-
-Branch: ${{ github.ref_name }}
-Commit: ${SHORT_SHA}
-Author: ${{ github.actor }}
-Data: ${TIMESTAMP}
-Mensagem: ${COMMIT_MSG}
-
-⬇️ Download APK: ${DOWNLOAD_URL}
-⚠️ Link expira em 7 dias (uso único)"
+          TEXT=$(printf '✅ Moneta APK Build OK\n\nBranch: %s\nCommit: %s\nAuthor: %s\nData: %s\nMensagem: %s\n\n⬇️ Download APK: %s\n⚠️ Link expira em 7 dias (uso único)' \
+            "${{ github.ref_name }}" "${SHORT_SHA}" "${{ github.actor }}" "${TIMESTAMP}" "${COMMIT_MSG}" "${DOWNLOAD_URL}")
 
           curl --fail-with-body \
             -X POST \
