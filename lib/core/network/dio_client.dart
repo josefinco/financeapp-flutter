@@ -25,9 +25,13 @@ Dio createDio() {
 class _AuthInterceptor extends Interceptor {
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    final session = Supabase.instance.client.auth.currentSession;
-    if (session != null) {
-      options.headers['Authorization'] = 'Bearer ${session.accessToken}';
+    try {
+      final session = Supabase.instance.client.auth.currentSession;
+      if (session != null) {
+        options.headers['Authorization'] = 'Bearer ${session.accessToken}';
+      }
+    } catch (_) {
+      // Supabase not initialized (demo mode) — skip auth header
     }
     handler.next(options);
   }
@@ -35,7 +39,6 @@ class _AuthInterceptor extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
     if (err.response?.statusCode == 401) {
-      // Try to refresh the token
       try {
         await Supabase.instance.client.auth.refreshSession();
         final session = Supabase.instance.client.auth.currentSession;
@@ -46,7 +49,7 @@ class _AuthInterceptor extends Interceptor {
           return handler.resolve(response);
         }
       } catch (_) {
-        // Refresh failed — let it propagate
+        // Refresh failed or Supabase not initialized — let it propagate
       }
     }
     handler.next(err);
