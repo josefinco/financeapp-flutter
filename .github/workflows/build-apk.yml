@@ -64,14 +64,12 @@ jobs:
           sed -i 's/-XX:MaxMetaspaceSize=4G/-XX:MaxMetaspaceSize=2G/g' android/gradle.properties
 
       # ─── 7. Create .env file ──────────────────────────────────────────────
-      # Uses the same placeholder values from .env.example.
-      # main.dart detects these and activates demo mode — no real credentials needed.
-      - name: Create .env file (demo mode)
+      - name: Create .env file
         run: |
-          cat > .env << 'EOF'
-          SUPABASE_URL=https://your-project.supabase.co
-          SUPABASE_ANON_KEY=your-anon-key
-          API_BASE_URL=http://10.0.2.2:8000/api/v1
+          cat > .env << EOF
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+          API_BASE_URL=${{ secrets.API_BASE_URL }}
           EOF
 
       # ─── 8. Install dependencies ──────────────────────────────────────────
