@@ -110,13 +110,13 @@ jobs:
           APK="build/app/outputs/flutter-apk/app-release.apk"
           TAG="apk-${SHORT_SHA}-$(date -u '+%Y%m%d%H%M%S')"
 
-          gh release create "${TAG}" "${APK}#moneta-release.apk" \
+          gh release create "${TAG}" "${APK}" \
             --title "APK ${SHORT_SHA}" \
             --notes "Build automático — ${COMMIT_MSG}" \
             --prerelease \
             --repo "${{ github.repository }}"
 
-          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/moneta-release.apk"
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/app-release.apk"
 
           TEXT=$(printf '✅ Moneta APK Build OK\n\nBranch: %s\nCommit: %s\nAuthor: %s\nData: %s\nMensagem: %s\n\n⬇️ Download APK: %s' \
             "${{ github.ref_name }}" "${SHORT_SHA}" "${{ github.actor }}" "${TIMESTAMP}" "${COMMIT_MSG}" "${DOWNLOAD_URL}")
