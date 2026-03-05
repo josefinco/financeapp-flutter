@@ -93,10 +93,11 @@ jobs:
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 14
 
-      # ─── 12. Upload APK to 0x0.st and send link via Telegram ─────────────
+      # ─── 12. Create GitHub Release and send link via Telegram ────────────
       - name: Send APK link via Telegram
         if: success()
         env:
+          GH_TOKEN: ${{ github.token }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
@@ -105,10 +106,17 @@ jobs:
           COMMIT_MSG=$(echo "${{ github.event.head_commit.message }}" | head -1)
           TIMESTAMP=$(date -u '+%d/%m/%Y %H:%M UTC')
           APK="build/app/outputs/flutter-apk/app-release.apk"
+          TAG="apk-${SHORT_SHA}-$(date -u '+%Y%m%d%H%M%S')"
 
-          DOWNLOAD_URL=$(curl -s -F "file=@${APK}" "https://0x0.st")
+          gh release create "${TAG}" "${APK}#moneta-release.apk" \
+            --title "APK ${SHORT_SHA}" \
+            --notes "Build automático — ${COMMIT_MSG}" \
+            --prerelease \
+            --repo "${{ github.repository }}"
 
-          TEXT=$(printf '✅ Moneta APK Build OK\n\nBranch: %s\nCommit: %s\nAuthor: %s\nData: %s\nMensagem: %s\n\n⬇️ Download APK: %s\n⚠️ Link expira em 30 dias' \
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/moneta-release.apk"
+
+          TEXT=$(printf '✅ Moneta APK Build OK\n\nBranch: %s\nCommit: %s\nAuthor: %s\nData: %s\nMensagem: %s\n\n⬇️ Download APK: %s' \
             "${{ github.ref_name }}" "${SHORT_SHA}" "${{ github.actor }}" "${TIMESTAMP}" "${COMMIT_MSG}" "${DOWNLOAD_URL}")
 
           curl --fail-with-body \
