@@ -104,7 +104,7 @@ jobs:
           SHORT_SHA="${{ github.sha }}"
           SHORT_SHA="${SHORT_SHA:0:7}"
           COMMIT_MSG=$(echo "${{ github.event.head_commit.message }}" | head -1)
-          TIMESTAMP=$(date -u '+%d/%m/%Y %H:%M UTC')
+          TIMESTAMP=$(date -u '+%d/%m/%Y às %H:%M UTC')
           APK="build/app/outputs/flutter-apk/app-release.apk"
           TAG="apk-${SHORT_SHA}-$(date -u '+%Y%m%d%H%M%S')"
 
@@ -116,14 +116,26 @@ jobs:
 
           DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/app-release.apk"
 
-          TEXT=$(printf '✅ Moneta APK Build OK\n\nBranch: %s\nCommit: %s\nAuthor: %s\nData: %s\nMensagem: %s\n\n⬇️ Download APK: %s' \
+          TEXT=$(printf '<b>🚀 Moneta — Novo APK Disponível</b>\n\n<pre>━━━━━━━━━━━━━━━━━━━━━</pre>\n📦 <b>Branch:</b>   <code>%s</code>\n🔖 <b>Commit:</b>   <code>%s</code>\n👤 <b>Autor:</b>    %s\n🕐 <b>Data:</b>     %s\n💬 <b>Commit msg:</b> %s\n<pre>━━━━━━━━━━━━━━━━━━━━━</pre>\n\n⬇️ <a href="%s">Download APK</a>\n📊 <a href="https://stats.uptimerobot.com/S42nwYJl5L">Status da aplicação</a>' \
             "${{ github.ref_name }}" "${SHORT_SHA}" "${{ github.actor }}" "${TIMESTAMP}" "${COMMIT_MSG}" "${DOWNLOAD_URL}")
 
-          curl --fail-with-body \
-            -X POST \
-            -H "Content-Type: application/json" \
-            -d "{\"chat_id\":\"${TELEGRAM_CHAT_ID}\",\"text\":$(echo "$TEXT" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")}" \
-            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage"
+          python3 -c "
+          import sys, json, urllib.request
+          payload = json.dumps({
+            'chat_id': sys.argv[1],
+            'text': sys.argv[2],
+            'parse_mode': 'HTML',
+            'disable_web_page_preview': False
+          }).encode()
+          req = urllib.request.Request(
+            f'https://api.telegram.org/bot{sys.argv[3]}/sendMessage',
+            data=payload,
+            headers={'Content-Type': 'application/json'},
+            method='POST'
+          )
+          with urllib.request.urlopen(req) as r:
+            print(r.read().decode())
+          " "${TELEGRAM_CHAT_ID}" "${TEXT}" "${TELEGRAM_BOT_TOKEN}"
 
       # ─── 13. Failure notification ─────────────────────────────────────────
       - name: Notify Telegram on failure
@@ -137,8 +149,23 @@ jobs:
           COMMIT_MSG=$(echo "${{ github.event.head_commit.message }}" | head -1)
           RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-          curl --fail-with-body \
-            -X POST \
-            -H "Content-Type: application/json" \
-            -d "{\"chat_id\":\"${TELEGRAM_CHAT_ID}\",\"text\":\"❌ Moneta APK Build FALHOU\n\nBranch: ${{ github.ref_name }}\nCommit: ${SHORT_SHA}\nAuthor: ${{ github.actor }}\nMensagem: ${COMMIT_MSG}\n\nLogs: ${RUN_URL}\"}" \
-            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage"
+          TEXT=$(printf '<b>❌ Moneta — Build Falhou</b>\n\n<pre>━━━━━━━━━━━━━━━━━━━━━</pre>\n📦 <b>Branch:</b>   <code>%s</code>\n🔖 <b>Commit:</b>   <code>%s</code>\n👤 <b>Autor:</b>    %s\n💬 <b>Commit msg:</b> %s\n<pre>━━━━━━━━━━━━━━━━━━━━━</pre>\n\n🔍 <a href="%s">Ver logs do CI</a>\n📊 <a href="https://stats.uptimerobot.com/S42nwYJl5L">Status da aplicação</a>' \
+            "${{ github.ref_name }}" "${SHORT_SHA}" "${{ github.actor }}" "${COMMIT_MSG}" "${RUN_URL}")
+
+          python3 -c "
+          import sys, json, urllib.request
+          payload = json.dumps({
+            'chat_id': sys.argv[1],
+            'text': sys.argv[2],
+            'parse_mode': 'HTML',
+            'disable_web_page_preview': False
+          }).encode()
+          req = urllib.request.Request(
+            f'https://api.telegram.org/bot{sys.argv[3]}/sendMessage',
+            data=payload,
+            headers={'Content-Type': 'application/json'},
+            method='POST'
+          )
+          with urllib.request.urlopen(req) as r:
+            print(r.read().decode())
+          " "${TELEGRAM_CHAT_ID}" "${TEXT}" "${TELEGRAM_BOT_TOKEN}"
