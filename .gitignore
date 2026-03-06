@@ -50,6 +50,7 @@ build/
 # Firebase
 **/google-services.json
 **/GoogleService-Info.plist
+android/app/google-services.json
 
 # IDEs
 .vscode/
