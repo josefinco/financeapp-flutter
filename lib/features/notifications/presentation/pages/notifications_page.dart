@@ -15,9 +15,9 @@ class NotificationsPage extends ConsumerWidget {
     final notificationsAsync = ref.watch(notificationsProvider);
 
     return Scaffold(
-      backgroundColor: isDark ? AppTheme.darkBg : AppTheme.lightBg,
+      backgroundColor: isDark ? const Color(0xFF0D0D0F) : const Color(0xFFF2F5F9),
       appBar: AppBar(
-        backgroundColor: isDark ? AppTheme.darkBg : AppTheme.lightBg,
+        backgroundColor: isDark ? const Color(0xFF0D0D0F) : const Color(0xFFF2F5F9),
         elevation: 0,
         title: Text(
           'Notificações',
@@ -155,7 +155,7 @@ class _NotificationCard extends StatelessWidget {
       case 'bill_due':
         return AppTheme.pendingColor;
       case 'budget_alert':
-        return AppTheme.primaryColor;
+        return AppTheme.incomeColor;
       default:
         return Colors.blueGrey;
     }
@@ -177,7 +177,7 @@ class _NotificationCard extends StatelessWidget {
           color: cardColor,
           borderRadius: BorderRadius.circular(14),
           border: isUnread
-              ? Border.all(color: AppTheme.primaryColor.withOpacity(0.4))
+              ? Border.all(color: AppTheme.incomeColor.withOpacity(0.4))
               : null,
         ),
         child: Row(
@@ -216,7 +216,7 @@ class _NotificationCard extends StatelessWidget {
                           width: 8,
                           height: 8,
                           decoration: const BoxDecoration(
-                            color: AppTheme.primaryColor,
+                            color: AppTheme.incomeColor,
                             shape: BoxShape.circle,
                           ),
                         ),
