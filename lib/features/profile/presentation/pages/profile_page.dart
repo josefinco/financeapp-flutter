@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/app_feedback.dart';
 import '../../../../main.dart';
+import '../providers/profile_provider.dart';
 
 // ─── Providers ────────────────────────────────────────────────────────────────
 
@@ -159,19 +160,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   _SettingsCard(
                     isDark: isDark,
                     children: [
-                      _SettingsTile(
-                        icon: Icons.notifications_outlined,
-                        iconColor: const Color(0xFFFF7043),
-                        label: 'Notificações',
-                        trailing: Switch.adaptive(
-                          value: true,
-                          activeColor: AppTheme.incomeColor,
-                          onChanged: (_) => AppFeedback.showInfo(
-                            context,
-                            'Configurações de notificação em breve.',
-                          ),
-                        ),
-                      ),
+                      _NotificationsToggle(),
                       _Divider(isDark: isDark),
                       _SettingsTile(
                         icon: Icons.language_outlined,
@@ -1011,6 +1000,48 @@ class _ThemeBtn extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ─── Notifications toggle ─────────────────────────────────────────────────────
+
+class _NotificationsToggle extends ConsumerWidget {
+  const _NotificationsToggle();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profileAsync = ref.watch(profileProvider);
+    final notifier = ref.read(profileNotifierProvider.notifier);
+
+    // While loading or in demo mode, fall back to enabled=true visually
+    final isEnabled = profileAsync.valueOrNull?.notificationsEnabled ?? true;
+    final isLoading = ref.watch(profileNotifierProvider).isLoading;
+
+    return _SettingsTile(
+      icon: Icons.notifications_outlined,
+      iconColor: const Color(0xFFFF7043),
+      label: 'Notificações',
+      trailing: isLoading
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Switch.adaptive(
+              value: isEnabled,
+              activeColor: AppTheme.incomeColor,
+              onChanged: (value) async {
+                final updated =
+                    await notifier.setNotificationsEnabled(value);
+                if (updated == null && context.mounted) {
+                  AppFeedback.showError(
+                    context,
+                    'Erro ao atualizar preferências de notificação.',
+                  );
+                }
+              },
+            ),
     );
   }
 }

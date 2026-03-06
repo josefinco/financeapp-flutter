@@ -12,6 +12,7 @@ import '../../features/transactions/presentation/pages/transactions_page.dart';
 import '../../features/reports/presentation/pages/reports_page.dart';
 import '../../features/categories/presentation/pages/categories_page.dart';
 import '../../features/budgets/presentation/pages/budgets_page.dart';
+import '../../features/notifications/presentation/pages/notifications_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/wallets/presentation/pages/wallets_page.dart';
 
@@ -47,8 +48,9 @@ GoRouter appRouter(AppRouterRef ref) {
         ],
       ),
       // Rotas fora do shell (sem bottom nav)
-      GoRoute(path: '/profile', builder: (_, __) => const ProfilePage()),
-      GoRoute(path: '/login',   builder: (_, __) => const LoginPage()),
+      GoRoute(path: '/notifications', builder: (_, __) => const NotificationsPage()),
+      GoRoute(path: '/profile',       builder: (_, __) => const ProfilePage()),
+      GoRoute(path: '/login',         builder: (_, __) => const LoginPage()),
     ],
   );
 }

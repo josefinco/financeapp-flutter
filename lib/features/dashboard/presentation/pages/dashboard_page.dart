@@ -305,7 +305,8 @@ class _HeroSection extends ConsumerWidget {
                   ),
                   // Action buttons
                   _GlassButton(
-                      icon: Icons.notifications_outlined, onTap: () {}),
+                      icon: Icons.notifications_outlined,
+                      onTap: () => context.push('/notifications')),
                   const SizedBox(width: 10),
                   // Avatar button with initials
                   GestureDetector(

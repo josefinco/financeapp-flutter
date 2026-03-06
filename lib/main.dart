@@ -1,3 +1,4 @@
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -7,8 +8,17 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:firebase_core/firebase_core.dart';
 
 import 'core/config/app_config.dart';
+import 'core/services/notification_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
+
+/// Handler de mensagens FCM em background (isolate separado).
+/// Deve ser função top-level.
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  debugPrint('[FCM Background] ${message.notification?.title}');
+}
 
 /// Global theme mode provider — toggled from the profile screen.
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.system);
@@ -37,9 +47,12 @@ void main() async {
       debugPrint('Supabase init failed: $e — running in demo mode');
     }
 
-    // Firebase is optional (push notifications) — don't block the app if missing
+    // Firebase é opcional (push notifications) — não bloqueia o app se ausente
     try {
       await Firebase.initializeApp();
+      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+      await NotificationService.instance.initialize();
+      await NotificationService.instance.getAndSyncToken();
     } catch (e) {
       debugPrint('Firebase init skipped: $e');
     }
