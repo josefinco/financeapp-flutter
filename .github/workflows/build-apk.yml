@@ -72,20 +72,24 @@ jobs:
           API_BASE_URL=${{ secrets.API_BASE_URL }}
           EOF
 
-      # ─── 8. Install dependencies ──────────────────────────────────────────
+      # ─── 8. Create google-services.json ───────────────────────────────────
+      - name: Create google-services.json
+        run: echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 -d > android/app/google-services.json
+
+      # ─── 9. Install dependencies ──────────────────────────────────────────
       - name: Flutter pub get
         run: flutter pub get
 
-      # ─── 9. Code generation ───────────────────────────────────────────────
+      # ─── 10. Code generation ──────────────────────────────────────────────
       # Generates .freezed.dart, .g.dart (Riverpod, Retrofit, JSON serialization)
       - name: Run build_runner
         run: dart run build_runner build --delete-conflicting-outputs
 
-      # ─── 10. Build release APK ────────────────────────────────────────────
+      # ─── 11. Build release APK ────────────────────────────────────────────
       - name: Build APK
         run: flutter build apk --release
 
-      # ─── 11. Upload APK artifact ──────────────────────────────────────────
+      # ─── 12. Upload APK artifact ──────────────────────────────────────────
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
@@ -93,7 +97,7 @@ jobs:
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 14
 
-      # ─── 12. Create GitHub Release and send link via Telegram ────────────
+      # ─── 13. Create GitHub Release and send link via Telegram ────────────
       - name: Send APK link via Telegram
         if: success()
         env:
@@ -125,7 +129,7 @@ jobs:
             -d "{\"chat_id\":\"${TELEGRAM_CHAT_ID}\",\"text\":$(echo "$TEXT" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")}" \
             "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage"
 
-      # ─── 13. Failure notification ─────────────────────────────────────────
+      # ─── 14. Failure notification ─────────────────────────────────────────
       - name: Notify Telegram on failure
         if: failure()
         env:
