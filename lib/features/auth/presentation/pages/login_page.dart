@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/services/notification_service.dart';
+
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
@@ -311,6 +313,11 @@ class _LoginPageState extends ConsumerState<LoginPage>
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
+
+      // Após logar, garantir que o backend tenha o token FCM atualizado.
+      // (o token é gerado/persistido pelo Firebase, não pela autenticação do Supabase)
+      await NotificationService.instance.getAndSyncToken();
+
       if (mounted) context.go('/');
     } catch (e) {
       setState(() => _error = 'E-mail ou senha inválidos.');
