@@ -6,7 +6,7 @@ part of 'wallets_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$walletsDatasourceHash() => r'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0';
+String _$walletsDatasourceHash() => r'cd2f61cfe59c65942fd868b4c2173e9b27879057';
 
 /// See also [walletsDatasource].
 @ProviderFor(walletsDatasource)
@@ -24,17 +24,15 @@ final walletsDatasourceProvider =
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef WalletsDatasourceRef = AutoDisposeProviderRef<WalletsRemoteDatasource>;
-
-String _$walletsHash() => r'b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1';
+String _$walletsHash() => r'bf45e9060bbde12673001367e18559a0f67d8e40';
 
 /// See also [wallets].
 @ProviderFor(wallets)
 final walletsProvider = AutoDisposeFutureProvider<List<Wallet>>.internal(
   wallets,
   name: r'walletsProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$walletsHash,
+  debugGetCreateSourceHash:
+      const bool.fromEnvironment('dart.vm.product') ? null : _$walletsHash,
   dependencies: null,
   allTransitiveDependencies: null,
 );
@@ -42,8 +40,7 @@ final walletsProvider = AutoDisposeFutureProvider<List<Wallet>>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef WalletsRef = AutoDisposeFutureProviderRef<List<Wallet>>;
-
-String _$walletsNotifierHash() => r'c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2';
+String _$walletsNotifierHash() => r'fcc6d53ed7a8253ea6ad3b8a867edfcd91c1a2d8';
 
 /// See also [WalletsNotifier].
 @ProviderFor(WalletsNotifier)

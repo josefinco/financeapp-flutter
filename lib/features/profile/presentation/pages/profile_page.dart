@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/app_feedback.dart';
@@ -85,7 +86,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // ── Conta ─────────────────────────────────────────────
-                  _SectionTitle(label: 'Conta'),
+                  const _SectionTitle(label: 'Conta'),
                   const SizedBox(height: 10),
                   _SettingsCard(
                     isDark: isDark,
@@ -134,7 +135,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   const SizedBox(height: 24),
 
                   // ── Aparência ──────────────────────────────────────────
-                  _SectionTitle(label: 'Aparência'),
+                  const _SectionTitle(label: 'Aparência'),
                   const SizedBox(height: 10),
                   _SettingsCard(
                     isDark: isDark,
@@ -155,12 +156,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   const SizedBox(height: 24),
 
                   // ── Preferências ───────────────────────────────────────
-                  _SectionTitle(label: 'Preferências'),
+                  const _SectionTitle(label: 'Preferências'),
                   const SizedBox(height: 10),
                   _SettingsCard(
                     isDark: isDark,
                     children: [
-                      _NotificationsToggle(),
+                      const _NotificationsToggle(),
                       _Divider(isDark: isDark),
                       _SettingsTile(
                         icon: Icons.language_outlined,
@@ -180,7 +181,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   const SizedBox(height: 24),
 
                   // ── Sobre ──────────────────────────────────────────────
-                  _SectionTitle(label: 'Sobre'),
+                  const _SectionTitle(label: 'Sobre'),
                   const SizedBox(height: 10),
                   _SettingsCard(
                     isDark: isDark,
@@ -557,6 +558,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
     setState(() => _loggingOut = true);
     try {
+      // Remove o token do FCM do dispositivo para evitar notificações após logout.
+      await FirebaseMessaging.instance.deleteToken();
+
       await Supabase.instance.client.auth.signOut();
       if (mounted) context.go('/login');
     } catch (e) {
@@ -632,7 +636,7 @@ class _EditNameSheet extends StatelessWidget {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide(
+                  borderSide: const BorderSide(
                     color: AppTheme.incomeColor,
                     width: 1.5,
                   ),
