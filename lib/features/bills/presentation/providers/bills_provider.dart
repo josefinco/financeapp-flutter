@@ -4,6 +4,8 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../domain/entities/bill.dart';
 import '../../data/datasources/bills_remote_datasource.dart';
 import '../../../../core/network/dio_client.dart';
+import '../../../reports/presentation/providers/reports_provider.dart';
+import '../../../wallets/presentation/providers/wallets_provider.dart';
 
 part 'bills_provider.g.dart';
 
@@ -48,18 +50,27 @@ class BillsNotifier extends _$BillsNotifier {
   @override
   AsyncValue<void> build() => const AsyncData(null);
 
-  Future<Bill?> markPaid(String billId, {DateTime? paidDate, double? paidAmount}) async {
+  Future<Bill?> markPaid(
+    String billId, {
+    DateTime? paidDate,
+    double? paidAmount,
+    String? walletId,
+  }) async {
     state = const AsyncLoading();
     try {
       final ds = ref.read(billsDatasourceProvider);
       final bill = await ds.markBillPaid(billId, {
         'paid_date': (paidDate ?? DateTime.now()).toIso8601String().substring(0, 10),
         if (paidAmount != null) 'paid_amount': paidAmount,
+        if (walletId != null) 'wallet_id': walletId,
       });
       state = const AsyncData(null);
-      // Invalidate the list to force refresh
+      // Invalidate lists to force refresh
       ref.invalidate(billsProvider);
       ref.invalidate(upcomingBillsProvider);
+      // Refresh wallet balances since money was deducted from the wallet
+      ref.invalidate(walletBalancesProvider);
+      ref.invalidate(walletsProvider);
       return bill;
     } catch (e, st) {
       state = AsyncError(e, st);

@@ -9,6 +9,8 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/app_feedback.dart';
 import '../../../categories/domain/entities/category.dart';
 import '../../../categories/presentation/providers/categories_provider.dart';
+import '../../../wallets/domain/entities/wallet.dart';
+import '../../../wallets/presentation/providers/wallets_provider.dart';
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -1311,13 +1313,15 @@ class BillDetailsSheet extends ConsumerWidget {
                         child: ElevatedButton.icon(
                           onPressed: actionState.isLoading
                               ? null
-                              : () async {
-                                  final paid = await notifier.markPaid(bill.id);
-                                  if (paid != null && context.mounted) {
-                                    Navigator.pop(context);
-                                    AppFeedback.showSuccess(
-                                        context, 'Conta marcada como paga!');
-                                  }
+                              : () {
+                                  Navigator.pop(context);
+                                  showModalBottomSheet(
+                                    context: context,
+                                    isScrollControlled: true,
+                                    useSafeArea: true,
+                                    backgroundColor: Colors.transparent,
+                                    builder: (_) => MarkPaidSheet(bill: bill),
+                                  );
                                 },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.transparent,
@@ -2050,6 +2054,472 @@ class _EditBillSheetState extends ConsumerState<EditBillSheet> {
         RecurrenceType.monthly => 'Mensal',
         RecurrenceType.yearly  => 'Anual',
       };
+}
+
+// ─── Mark Paid Sheet ──────────────────────────────────────────────────────────
+
+/// Bottom sheet that collects the paid date, amount override, and wallet
+/// selection before calling [BillsNotifier.markPaid].
+class MarkPaidSheet extends ConsumerStatefulWidget {
+  final Bill bill;
+  const MarkPaidSheet({super.key, required this.bill});
+
+  @override
+  ConsumerState<MarkPaidSheet> createState() => _MarkPaidSheetState();
+}
+
+class _MarkPaidSheetState extends ConsumerState<MarkPaidSheet> {
+  late DateTime _paidDate;
+  late TextEditingController _amountCtrl;
+  String? _walletId;
+
+  @override
+  void initState() {
+    super.initState();
+    _paidDate = DateTime.now();
+    _amountCtrl = TextEditingController(
+      text: widget.bill.amount.toStringAsFixed(2).replaceAll('.', ','),
+    );
+  }
+
+  @override
+  void dispose() {
+    _amountCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _paidDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+      locale: const Locale('pt', 'BR'),
+    );
+    if (picked != null) setState(() => _paidDate = picked);
+  }
+
+  Future<void> _submit() async {
+    if (_walletId == null) {
+      AppFeedback.showError(context, 'Selecione a carteira de onde será debitado.');
+      return;
+    }
+
+    final rawAmount = _amountCtrl.text.trim();
+    double amount = widget.bill.amount;
+    if (rawAmount.isNotEmpty) {
+      final normalized = rawAmount.contains(',') && rawAmount.contains('.')
+          ? rawAmount.replaceAll('.', '').replaceAll(',', '.')
+          : rawAmount.replaceAll(',', '.');
+      final parsed = double.tryParse(normalized);
+      if (parsed != null && parsed > 0) amount = parsed;
+    }
+
+    final notifier = ref.read(billsNotifierProvider.notifier);
+    final paid = await notifier.markPaid(
+      widget.bill.id,
+      paidDate: _paidDate,
+      paidAmount: amount,
+      walletId: _walletId,
+    );
+
+    if (paid != null && mounted) {
+      Navigator.pop(context);
+      AppFeedback.showSuccess(context, 'Conta "${widget.bill.name}" marcada como paga!');
+    } else if (mounted) {
+      AppFeedback.showError(context, 'Erro ao registrar pagamento. Tente novamente.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final walletsAsync = ref.watch(walletsProvider);
+    final actionState = ref.watch(billsNotifierProvider);
+    final currFmt = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
+    final dateFmt = DateFormat('dd/MM/yyyy');
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.75,
+      maxChildSize: 0.95,
+      builder: (_, controller) => Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E1E2C) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: ListView(
+          controller: controller,
+          padding: EdgeInsets.fromLTRB(
+            24,
+            0,
+            24,
+            MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
+          children: [
+            // ── Handle ───────────────────────────────────────────────────
+            Center(
+              child: Container(
+                margin: const EdgeInsets.only(top: 12, bottom: 20),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white24 : Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+
+            // ── Title ────────────────────────────────────────────────────
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppTheme.incomeColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.check_circle_outline_rounded,
+                    color: AppTheme.incomeColor,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Registrar Pagamento',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.4,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        widget.bill.name,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isDark ? Colors.white54 : Colors.grey.shade500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // ── Amount chip ──────────────────────────────────────────────
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppTheme.incomeColor.withOpacity(0.06),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppTheme.incomeColor.withOpacity(0.18)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.receipt_outlined,
+                      color: AppTheme.incomeColor, size: 18),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Valor original: ${currFmt.format(widget.bill.amount)}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppTheme.incomeColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // ── Paid amount ──────────────────────────────────────────────
+            TextField(
+              controller: _amountCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d,.]'))],
+              decoration: InputDecoration(
+                labelText: 'Valor pago',
+                prefixIcon: const Icon(Icons.attach_money),
+                prefixText: 'R\$ ',
+                border: const OutlineInputBorder(),
+                hintText: '0,00',
+                helperText: 'Deixe em branco para usar o valor original',
+                helperStyle: TextStyle(
+                  fontSize: 11,
+                  color: isDark ? Colors.white38 : Colors.grey.shade400,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // ── Paid date ────────────────────────────────────────────────
+            InkWell(
+              onTap: _pickDate,
+              borderRadius: BorderRadius.circular(4),
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Data do pagamento',
+                  prefixIcon: Icon(Icons.calendar_today_outlined),
+                  border: OutlineInputBorder(),
+                  suffixIcon: Icon(Icons.arrow_drop_down),
+                ),
+                child: Text(dateFmt.format(_paidDate)),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // ── Wallet selection ─────────────────────────────────────────
+            Row(
+              children: [
+                const Icon(Icons.account_balance_wallet_rounded,
+                    size: 16, color: AppTheme.incomeColor),
+                const SizedBox(width: 8),
+                Text(
+                  'Debitar da carteira *',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : const Color(0xFF1B2B3A),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            walletsAsync.when(
+              loading: () => const LinearProgressIndicator(),
+              error: (_, __) => Text(
+                'Erro ao carregar carteiras.',
+                style: TextStyle(
+                  color: isDark ? Colors.white54 : Colors.grey,
+                  fontSize: 13,
+                ),
+              ),
+              data: (wallets) {
+                if (wallets.isEmpty) {
+                  return Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF0D0D0F) : Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isDark ? Colors.white10 : Colors.grey.shade200,
+                      ),
+                    ),
+                    child: Text(
+                      'Nenhuma carteira cadastrada. Adicione uma carteira para registrar o débito.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: isDark ? Colors.white38 : Colors.grey,
+                      ),
+                    ),
+                  );
+                }
+                return Column(
+                  children: wallets
+                      .where((w) => w.isActive)
+                      .map((wallet) => _WalletOption(
+                            wallet: wallet,
+                            isSelected: _walletId == wallet.id,
+                            isDark: isDark,
+                            onTap: () => setState(() => _walletId = wallet.id),
+                          ))
+                      .toList(),
+                );
+              },
+            ),
+            const SizedBox(height: 28),
+
+            // ── Confirm button ───────────────────────────────────────────
+            SizedBox(
+              height: 54,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: actionState.isLoading || _walletId == null
+                      ? null
+                      : const LinearGradient(
+                          colors: [Color(0xFF1B6B45), Color(0xFF2196F3)]),
+                  color: actionState.isLoading || _walletId == null
+                      ? (isDark ? Colors.white10 : Colors.grey.shade200)
+                      : null,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: ElevatedButton.icon(
+                  onPressed: actionState.isLoading ? null : _submit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
+                  ),
+                  icon: actionState.isLoading
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Icon(Icons.check_circle_rounded,
+                          color: Colors.white, size: 20),
+                  label: Text(
+                    actionState.isLoading ? 'Registrando...' : 'Confirmar Pagamento',
+                    style: TextStyle(
+                      color: actionState.isLoading || _walletId == null
+                          ? (isDark ? Colors.white38 : Colors.grey)
+                          : Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Wallet Option Tile ───────────────────────────────────────────────────────
+
+class _WalletOption extends StatelessWidget {
+  final Wallet wallet;
+  final bool isSelected;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _WalletOption({
+    required this.wallet,
+    required this.isSelected,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final currFmt = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
+    Color walletColor;
+    try {
+      walletColor = Color(int.parse(wallet.color.replaceFirst('#', '0xFF')));
+    } catch (_) {
+      walletColor = AppTheme.incomeColor;
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? walletColor.withOpacity(0.08)
+              : (isDark ? const Color(0xFF0D0D0F) : Colors.grey.shade50),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected
+                ? walletColor.withOpacity(0.5)
+                : (isDark ? Colors.white10 : Colors.grey.shade200),
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: walletColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.account_balance_wallet_rounded,
+                color: walletColor,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    wallet.name,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: isSelected ? walletColor : null,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    wallet.type.label,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isDark ? Colors.white38 : Colors.grey.shade500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  currFmt.format(wallet.balance),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: wallet.balance >= 0
+                        ? AppTheme.incomeColor
+                        : AppTheme.errorColor,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'saldo atual',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: isDark ? Colors.white38 : Colors.grey.shade400,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 8),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isSelected ? walletColor : Colors.transparent,
+                border: Border.all(
+                  color: isSelected
+                      ? walletColor
+                      : (isDark ? Colors.white24 : Colors.grey.shade300),
+                  width: 2,
+                ),
+              ),
+              child: isSelected
+                  ? const Icon(Icons.check, color: Colors.white, size: 12)
+                  : null,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 // ─── Gradient FAB ─────────────────────────────────────────────────────────────
