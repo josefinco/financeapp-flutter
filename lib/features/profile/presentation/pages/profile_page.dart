@@ -168,6 +168,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     children: [
                       const _NotificationsToggle(),
                       _Divider(isDark: isDark),
+                      const _NotificationTimeTile(),
+                      _Divider(isDark: isDark),
                       _SettingsTile(
                         icon: Icons.language_outlined,
                         iconColor: const Color(0xFF7E57C2),
@@ -1071,6 +1073,72 @@ class _NotificationsToggle extends ConsumerWidget {
                 }
               },
             ),
+    );
+  }
+}
+
+// ─── Notification Time Tile ───────────────────────────────────────────────────
+
+class _NotificationTimeTile extends ConsumerWidget {
+  const _NotificationTimeTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profileAsync = ref.watch(profileProvider);
+    final notifier = ref.read(profileNotifierProvider.notifier);
+    final isLoading = ref.watch(profileNotifierProvider).isLoading;
+
+    final hour = profileAsync.valueOrNull?.notificationHour ?? 8;
+    final timeLabel = '${hour.toString().padLeft(2, '0')}:00';
+
+    return _SettingsTile(
+      icon: Icons.schedule_outlined,
+      iconColor: const Color(0xFF26C6DA),
+      label: 'Horário das notificações',
+      showArrow: !isLoading,
+      trailing: isLoading
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Text(
+              timeLabel,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF26C6DA),
+              ),
+            ),
+      onTap: isLoading
+          ? null
+          : () async {
+              final picked = await showTimePicker(
+                context: context,
+                initialTime: TimeOfDay(hour: hour, minute: 0),
+                helpText: 'Horário para notificações de contas',
+                builder: (context, child) => MediaQuery(
+                  data: MediaQuery.of(context).copyWith(
+                    alwaysUse24HourFormat: true,
+                  ),
+                  child: child!,
+                ),
+              );
+              if (picked == null || !context.mounted) return;
+              final updated =
+                  await notifier.setNotificationHour(picked.hour);
+              if (updated == null && context.mounted) {
+                AppFeedback.showError(
+                  context,
+                  'Erro ao atualizar horário de notificações.',
+                );
+              } else if (context.mounted) {
+                AppFeedback.showSuccess(
+                  context,
+                  'Horário de notificações atualizado para ${picked.hour.toString().padLeft(2, '0')}:00.',
+                );
+              }
+            },
     );
   }
 }

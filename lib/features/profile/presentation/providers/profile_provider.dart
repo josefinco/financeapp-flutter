@@ -46,4 +46,8 @@ class ProfileNotifier extends _$ProfileNotifier {
   Future<UserProfile?> setNotificationsEnabled(bool enabled) async {
     return updateProfile({'notifications_enabled': enabled});
   }
+
+  Future<UserProfile?> setNotificationHour(int hour) async {
+    return updateProfile({'notification_hour': hour});
+  }
 }

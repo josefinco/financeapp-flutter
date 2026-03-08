@@ -2,10 +2,15 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../domain/entities/report.dart';
+import '../../services/bill_report_service.dart';
 import '../providers/reports_provider.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/network/dio_client.dart';
+import '../../../../core/widgets/app_feedback.dart';
+import '../../../bills/domain/entities/bill.dart';
 import '../../../bills/presentation/providers/bills_provider.dart';
 
 // ─── Reports Page ─────────────────────────────────────────────────────────────
@@ -20,6 +25,7 @@ class ReportsPage extends ConsumerStatefulWidget {
 class _ReportsPageState extends ConsumerState<ReportsPage> {
   late int _month;
   late int _year;
+  bool _generatingReport = false;
 
   final _currFmt = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
   final _monthFmt = DateFormat('MMMM yyyy', 'pt_BR');
@@ -47,6 +53,60 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     return _month == now.month && _year == now.year;
   }
 
+  // ─── Share report ──────────────────────────────────────────────────────────
+
+  Future<void> _shareReport(BuildContext context) async {
+    final summary =
+        ref.read(monthlySummaryProvider(month: _month, year: _year)).valueOrNull;
+    final expenses =
+        ref.read(expensesByCategoryProvider(month: _month, year: _year)).valueOrNull;
+
+    if (summary == null || expenses == null) {
+      AppFeedback.showInfo(
+        context,
+        'Aguarde o carregamento dos dados para gerar o relatório.',
+      );
+      return;
+    }
+
+    setState(() => _generatingReport = true);
+    try {
+      // Fetch bills for the current month via a direct Dio call
+      final dio = createDio();
+      final resp = await dio.get('/bills', queryParameters: {
+        'month': _month,
+        'year': _year,
+        'limit': 200,
+      });
+      final bills = ((resp.data['items'] ?? resp.data) as List)
+          .map((e) => Bill.fromJson(e as Map<String, dynamic>))
+          .toList();
+
+      final file = await BillReportService.generate(
+        month: _month,
+        year: _year,
+        summary: summary,
+        bills: bills,
+        expensesByCategory: expenses,
+      );
+
+      final monthLabel =
+          _monthFmt.format(DateTime(_year, _month));
+
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'application/pdf')],
+        subject: 'Relatório de Contas — $monthLabel',
+        text: 'Relatório de contas Moneta — $monthLabel',
+      );
+    } catch (e) {
+      if (mounted) {
+        AppFeedback.showError(context, 'Erro ao gerar relatório: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _generatingReport = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -59,6 +119,25 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _generatingReport ? null : () => _shareReport(context),
+        backgroundColor: AppTheme.incomeColor,
+        foregroundColor: Colors.white,
+        icon: _generatingReport
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2.5,
+                ),
+              )
+            : const Icon(Icons.share_rounded),
+        label: Text(
+          _generatingReport ? 'Gerando...' : 'Compartilhar',
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      ),
       body: NestedScrollView(
         headerSliverBuilder: (_, __) => [
           SliverAppBar(

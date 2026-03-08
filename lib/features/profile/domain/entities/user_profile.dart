@@ -15,6 +15,7 @@ class UserProfile with _$UserProfile {
     required String timezone,
     String? fcmToken,
     required bool notificationsEnabled,
+    @JsonKey(defaultValue: 8) @Default(8) int notificationHour,
     required DateTime createdAt,
     required DateTime updatedAt,
   }) = _UserProfile;
