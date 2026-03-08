@@ -554,7 +554,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     if (_sendingReset) return;
     setState(() => _sendingReset = true);
     try {
-      await Supabase.instance.client.auth.resetPasswordForEmail(_email);
+      await Supabase.instance.client.auth.resetPasswordForEmail(
+        _email,
+        redirectTo: 'moneta://login-callback',
+      );
       if (mounted) AppFeedback.showSuccess(context, 'Link de redefinição enviado para $_email.');
     } on AuthException catch (e) {
       if (mounted) AppFeedback.showError(context, e.message);
