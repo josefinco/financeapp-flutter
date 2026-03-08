@@ -344,6 +344,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
       await Supabase.instance.client.auth.signUp(
         email: email,
         password: password,
+        emailRedirectTo: 'moneta://login-callback',
       );
       setState(() => _success = 'Verifique seu e-mail para confirmar o cadastro.');
     } on AuthException catch (e) {
