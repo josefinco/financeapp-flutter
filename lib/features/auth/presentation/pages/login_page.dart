@@ -327,13 +327,27 @@ class _LoginPageState extends ConsumerState<LoginPage>
   }
 
   Future<void> _signUp() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() => _error = 'Informe um e-mail válido.');
+      return;
+    }
+    if (password.length < 6) {
+      setState(() => _error = 'A senha deve ter pelo menos 6 caracteres.');
+      return;
+    }
+
     setState(() { _loading = true; _error = null; _success = null; });
     try {
       await Supabase.instance.client.auth.signUp(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
+        email: email,
+        password: password,
       );
       setState(() => _success = 'Verifique seu e-mail para confirmar o cadastro.');
+    } on AuthException catch (e) {
+      setState(() => _error = e.message);
     } catch (e) {
       setState(() => _error = 'Erro ao criar conta. Tente novamente.');
     } finally {

@@ -30,6 +30,7 @@ class ProfilePage extends ConsumerStatefulWidget {
 class _ProfilePageState extends ConsumerState<ProfilePage> {
   bool _loggingOut = false;
   bool _uploadingAvatar = false;
+  bool _sendingReset = false;
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -123,11 +124,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         icon: Icons.lock_outline_rounded,
                         iconColor: const Color(0xFF7E57C2),
                         label: 'Alterar senha',
-                        showArrow: true,
-                        onTap: () => AppFeedback.showInfo(
-                          context,
-                          'Redefinição enviada para $_email.',
-                        ),
+                        showArrow: !_sendingReset,
+                        trailing: _sendingReset
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : null,
+                        onTap: () => _sendPasswordReset(context),
                       ),
                     ],
                   ),
@@ -540,6 +545,23 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       }
     } finally {
       if (mounted) setState(() => _uploadingAvatar = false);
+    }
+  }
+
+  // ─── Password reset ───────────────────────────────────────────────────────
+
+  Future<void> _sendPasswordReset(BuildContext context) async {
+    if (_sendingReset) return;
+    setState(() => _sendingReset = true);
+    try {
+      await Supabase.instance.client.auth.resetPasswordForEmail(_email);
+      if (mounted) AppFeedback.showSuccess(context, 'Link de redefinição enviado para $_email.');
+    } on AuthException catch (e) {
+      if (mounted) AppFeedback.showError(context, e.message);
+    } catch (_) {
+      if (mounted) AppFeedback.showError(context, 'Erro ao enviar redefinição. Tente novamente.');
+    } finally {
+      if (mounted) setState(() => _sendingReset = false);
     }
   }
 

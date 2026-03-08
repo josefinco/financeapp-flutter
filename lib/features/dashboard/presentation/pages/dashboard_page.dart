@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -209,6 +210,12 @@ class _HeroSection extends ConsumerWidget {
     final greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
     final greetingEmoji = hour < 12 ? '☀️' : hour < 18 ? '🌤' : '🌙';
 
+    final authUser = Supabase.instance.client.auth.currentUser;
+    final avatarUrl = () {
+      final url = authUser?.userMetadata?['avatar_url'];
+      return url is String ? url : '';
+    }();
+
     // Pending this month
     final pendingBills = pendingAsync.maybeWhen(
       data: (res) => res.items as List<Bill>,
@@ -308,7 +315,7 @@ class _HeroSection extends ConsumerWidget {
                       icon: Icons.notifications_outlined,
                       onTap: () => context.push('/notifications')),
                   const SizedBox(width: 10),
-                  // Avatar button with initials
+                  // Avatar button
                   GestureDetector(
                     onTap: () => context.push('/profile'),
                     child: Container(
@@ -324,17 +331,30 @@ class _HeroSection extends ConsumerWidget {
                         border: Border.all(
                             color: Colors.white.withOpacity(0.3), width: 1.5),
                       ),
-                      child: Center(
-                        child: Text(
-                          firstName.isNotEmpty
-                              ? firstName[0].toUpperCase()
-                              : '?',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
+                      child: ClipOval(
+                        child: avatarUrl.isNotEmpty
+                            ? CachedNetworkImage(
+                                imageUrl: avatarUrl,
+                                fit: BoxFit.cover,
+                                placeholder: (_, __) => Center(
+                                  child: Text(
+                                    firstName.isNotEmpty ? firstName[0].toUpperCase() : '?',
+                                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
+                                  ),
+                                ),
+                                errorWidget: (_, __, ___) => Center(
+                                  child: Text(
+                                    firstName.isNotEmpty ? firstName[0].toUpperCase() : '?',
+                                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
+                                  ),
+                                ),
+                              )
+                            : Center(
+                                child: Text(
+                                  firstName.isNotEmpty ? firstName[0].toUpperCase() : '?',
+                                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
+                                ),
+                              ),
                       ),
                     ),
                   ),
