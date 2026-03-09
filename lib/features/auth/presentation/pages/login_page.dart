@@ -568,9 +568,11 @@ class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
     }
     setState(() { _loading = true; _error = null; });
     try {
+      // Usa moneta://login-callback porque está na whitelist do Supabase.
+      // O evento passwordRecovery é o que distingue este fluxo do login normal.
       await Supabase.instance.client.auth.resetPasswordForEmail(
         email,
-        redirectTo: 'moneta://reset-password',
+        redirectTo: 'moneta://login-callback',
       );
       setState(() => _sent = true);
     } on AuthException catch (e) {
