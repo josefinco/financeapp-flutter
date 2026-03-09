@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/services/notification_service.dart';
+import '../../../../core/services/biometric_service.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -22,6 +23,12 @@ class _LoginPageState extends ConsumerState<LoginPage>
   String? _error;
   String? _success;
 
+  // Biometria
+  bool _biometricAvailable    = false;
+  bool _hasSavedCredentials   = false;
+  String? _savedEmail;
+  bool _biometricLoading      = false;
+
   late AnimationController _animCtrl;
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
@@ -34,6 +41,20 @@ class _LoginPageState extends ConsumerState<LoginPage>
     _slideAnim = Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero)
         .animate(CurvedAnimation(parent: _animCtrl, curve: Curves.easeOutCubic));
     _animCtrl.forward();
+    _checkBiometric();
+  }
+
+  Future<void> _checkBiometric() async {
+    final available = await BiometricService.instance.isAvailable();
+    final hasCreds  = await BiometricService.instance.hasStoredCredentials();
+    final email     = await BiometricService.instance.getStoredEmail();
+    if (mounted) {
+      setState(() {
+        _biometricAvailable  = available;
+        _hasSavedCredentials = hasCreds;
+        _savedEmail          = email;
+      });
+    }
   }
 
   @override
@@ -90,7 +111,6 @@ class _LoginPageState extends ConsumerState<LoginPage>
   Widget _buildLogo() {
     return Column(
       children: [
-        // Glowing coin icon
         Container(
           width: 84,
           height: 84,
@@ -189,6 +209,25 @@ class _LoginPageState extends ConsumerState<LoginPage>
             ),
           ),
 
+          // ── Esqueci minha senha (apenas na aba "Entrar") ─────────────────
+          if (!_isSignUp) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: GestureDetector(
+                onTap: _showForgotPasswordSheet,
+                child: Text(
+                  'Esqueci minha senha',
+                  style: TextStyle(
+                    color: const Color(0xFF4CAF50).withOpacity(0.85),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+          ],
+
           // Error / Success messages
           if (_error != null) ...[
             const SizedBox(height: 14),
@@ -247,9 +286,14 @@ class _LoginPageState extends ConsumerState<LoginPage>
             ),
           ),
 
+          // ── Botão biométrico (apenas na aba "Entrar") ────────────────────
+          if (!_isSignUp && _biometricAvailable && _hasSavedCredentials) ...[
+            const SizedBox(height: 16),
+            _buildBiometricButton(),
+          ],
+
           const SizedBox(height: 20),
 
-          // Divider + social hint
           Row(
             children: [
               Expanded(child: Divider(color: Colors.white.withOpacity(0.1), thickness: 1)),
@@ -261,6 +305,60 @@ class _LoginPageState extends ConsumerState<LoginPage>
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  // ─── Biometric button ────────────────────────────────────────────────────
+
+  Widget _buildBiometricButton() {
+    return GestureDetector(
+      onTap: _biometricLoading ? null : _loginWithBiometric,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 52,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.07),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.4), width: 1.5),
+        ),
+        child: Center(
+          child: _biometricLoading
+              ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(color: Color(0xFF4CAF50), strokeWidth: 2.5),
+                )
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.fingerprint_rounded, color: Color(0xFF4CAF50), size: 24),
+                    const SizedBox(width: 10),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Entrar com digital',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (_savedEmail != null)
+                          Text(
+                            _savedEmail!,
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.4),
+                              fontSize: 11,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+        ),
       ),
     );
   }
@@ -304,19 +402,60 @@ class _LoginPageState extends ConsumerState<LoginPage>
     );
   }
 
+  // ─── Forgot Password Sheet ─────────────────────────────────────────────────
+
+  void _showForgotPasswordSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ForgotPasswordSheet(
+        initialEmail: _emailController.text.trim(),
+      ),
+    );
+  }
+
+  // ─── Biometric login ──────────────────────────────────────────────────────
+
+  Future<void> _loginWithBiometric() async {
+    setState(() { _biometricLoading = true; _error = null; _success = null; });
+    try {
+      final creds = await BiometricService.instance.authenticateAndGetCredentials();
+      if (creds == null) {
+        setState(() => _error = 'Autenticação biométrica cancelada ou falhou.');
+        return;
+      }
+      await Supabase.instance.client.auth.signInWithPassword(
+        email: creds.email,
+        password: creds.password,
+      );
+      await NotificationService.instance.getAndSyncToken();
+      if (mounted) context.go('/');
+    } catch (e) {
+      setState(() => _error = 'Não foi possível autenticar. Tente com e-mail e senha.');
+    } finally {
+      if (mounted) setState(() => _biometricLoading = false);
+    }
+  }
+
   // ─── Actions ──────────────────────────────────────────────────────────────
 
   Future<void> _signIn() async {
+    final email    = _emailController.text.trim();
+    final password = _passwordController.text;
+
     setState(() { _loading = true; _error = null; _success = null; });
     try {
       await Supabase.instance.client.auth.signInWithPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
+        email: email,
+        password: password,
       );
-
-      // Após logar, garantir que o backend tenha o token FCM atualizado.
-      // (o token é gerado/persistido pelo Firebase, não pela autenticação do Supabase)
       await NotificationService.instance.getAndSyncToken();
+
+      // Oferecer salvar credenciais para biometria futura
+      if (mounted && _biometricAvailable && !_hasSavedCredentials) {
+        _promptSaveBiometric(email, password);
+      }
 
       if (mounted) context.go('/');
     } catch (e) {
@@ -326,8 +465,44 @@ class _LoginPageState extends ConsumerState<LoginPage>
     }
   }
 
+  /// Após login bem-sucedido, pergunta se o usuário quer ativar a biometria.
+  void _promptSaveBiometric(String email, String password) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0F1F2E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.fingerprint_rounded, color: Color(0xFF4CAF50)),
+            SizedBox(width: 10),
+            Text('Ativar login por digital?', style: TextStyle(color: Colors.white, fontSize: 16)),
+          ],
+        ),
+        content: Text(
+          'Nas próximas vezes, você poderá entrar usando sua digital sem digitar a senha.',
+          style: TextStyle(color: Colors.white.withOpacity(0.65), fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Agora não', style: TextStyle(color: Colors.white.withOpacity(0.4))),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await BiometricService.instance.saveCredentials(email, password);
+              await _checkBiometric();
+            },
+            child: const Text('Ativar', style: TextStyle(color: Color(0xFF4CAF50), fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _signUp() async {
-    final email = _emailController.text.trim();
+    final email    = _emailController.text.trim();
     final password = _passwordController.text;
 
     if (email.isEmpty || !email.contains('@')) {
@@ -354,6 +529,185 @@ class _LoginPageState extends ConsumerState<LoginPage>
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+}
+
+// ─── Forgot Password Bottom Sheet ─────────────────────────────────────────────
+
+class _ForgotPasswordSheet extends StatefulWidget {
+  final String initialEmail;
+  const _ForgotPasswordSheet({required this.initialEmail});
+
+  @override
+  State<_ForgotPasswordSheet> createState() => _ForgotPasswordSheetState();
+}
+
+class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
+  late final TextEditingController _emailCtrl;
+  bool _loading  = false;
+  bool _sent     = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _emailCtrl = TextEditingController(text: widget.initialEmail);
+  }
+
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _sendReset() async {
+    final email = _emailCtrl.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() => _error = 'Informe um e-mail válido.');
+      return;
+    }
+    setState(() { _loading = true; _error = null; });
+    try {
+      await Supabase.instance.client.auth.resetPasswordForEmail(
+        email,
+        redirectTo: 'moneta://reset-password',
+      );
+      setState(() => _sent = true);
+    } on AuthException catch (e) {
+      setState(() => _error = e.message);
+    } catch (_) {
+      setState(() => _error = 'Erro ao enviar. Tente novamente.');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    return Container(
+      padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottom),
+      decoration: const BoxDecoration(
+        color: Color(0xFF0F1F2E),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Handle
+          Center(
+            child: Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          if (!_sent) ...[
+            const Text(
+              'Redefinir senha',
+              style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Informe o e-mail da sua conta e enviaremos um link para redefinir sua senha.',
+              style: TextStyle(color: Colors.white.withOpacity(0.55), fontSize: 14, height: 1.5),
+            ),
+            const SizedBox(height: 24),
+
+            // Email field
+            TextField(
+              controller: _emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              style: const TextStyle(color: Colors.white, fontSize: 15),
+              decoration: InputDecoration(
+                labelText: 'E-mail',
+                labelStyle: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 14),
+                prefixIcon: const Icon(Icons.email_outlined, color: Colors.white38, size: 20),
+                filled: true,
+                fillColor: Colors.white.withOpacity(0.07),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(color: Colors.white.withOpacity(0.12)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(color: Colors.white.withOpacity(0.12)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: Color(0xFF4CAF50), width: 2),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 17),
+              ),
+            ),
+
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              _MessageBanner(message: _error!, isError: true),
+            ],
+
+            const SizedBox(height: 20),
+
+            GestureDetector(
+              onTap: _loading ? null : _sendReset,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                height: 52,
+                decoration: BoxDecoration(
+                  gradient: _loading
+                      ? null
+                      : const LinearGradient(
+                          colors: [Color(0xFF43A047), Color(0xFF1B5E20)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                  color: _loading ? Colors.white12 : null,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Center(
+                  child: _loading
+                      ? const SizedBox(
+                          width: 22, height: 22,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                        )
+                      : const Text(
+                          'Enviar link de redefinição',
+                          style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700),
+                        ),
+                ),
+              ),
+            ),
+          ] else ...[
+            // Sucesso
+            const Center(
+              child: Icon(Icons.mark_email_read_rounded, color: Color(0xFF4CAF50), size: 64),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'E-mail enviado!',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Verifique sua caixa de entrada e siga as instruções para redefinir sua senha.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white.withOpacity(0.55), fontSize: 14, height: 1.5),
+            ),
+            const SizedBox(height: 28),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Fechar', style: TextStyle(color: Color(0xFF4CAF50), fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }
 
