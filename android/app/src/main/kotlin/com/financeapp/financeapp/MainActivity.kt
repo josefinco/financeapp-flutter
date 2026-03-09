@@ -1,5 +1,7 @@
 package com.financeapp.financeapp
 
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 
-class MainActivity : FlutterActivity()
+// FlutterFragmentActivity é exigido pelo plugin local_auth para exibir
+// o diálogo biométrico nativo do Android.
+class MainActivity : FlutterFragmentActivity()

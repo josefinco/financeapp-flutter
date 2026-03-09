@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +11,7 @@ import '../../main.dart';
 import '../../features/bills/presentation/pages/bills_page.dart';
 import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
+import '../../features/auth/presentation/pages/reset_password_page.dart';
 import '../../features/transactions/presentation/pages/transactions_page.dart';
 import '../../features/reports/presentation/pages/reports_page.dart';
 import '../../features/categories/presentation/pages/categories_page.dart';
@@ -18,19 +22,64 @@ import '../../features/wallets/presentation/pages/wallets_page.dart';
 
 part 'app_router.g.dart';
 
+// ─── Auth change notifier ─────────────────────────────────────────────────────
+// Escuta o stream de auth do Supabase e notifica o GoRouter para reavaliar
+// os redirects. Necessário para detectar o evento passwordRecovery.
+
+class _AuthChangeNotifier extends ChangeNotifier {
+  AuthChangeEvent? _lastEvent;
+  AuthChangeEvent? get lastEvent => _lastEvent;
+
+  StreamSubscription<AuthState>? _sub;
+
+  void init() {
+    _sub = Supabase.instance.client.auth.onAuthStateChange.listen((state) {
+      _lastEvent = state.event;
+      notifyListeners();
+    });
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+}
+
+final authChangeNotifierProvider = Provider<_AuthChangeNotifier>((ref) {
+  final notifier = _AuthChangeNotifier();
+  if (isBackendAvailable) notifier.init();
+  ref.onDispose(notifier.dispose);
+  return notifier;
+});
+
+// ─── Router ───────────────────────────────────────────────────────────────────
+
 @riverpod
 GoRouter appRouter(AppRouterRef ref) {
+  final authNotifier = ref.watch(authChangeNotifierProvider);
+
   return GoRouter(
     initialLocation: '/',
+    refreshListenable: authNotifier,
     redirect: (context, state) {
       if (!isBackendAvailable) return null;
 
-      final session   = Supabase.instance.client.auth.currentSession;
-      final isAuth    = session != null;
-      final isLogin   = state.matchedLocation == '/login';
+      // Quando o Supabase processa o link de redefinição de senha, dispara
+      // passwordRecovery — redireciona para a tela de nova senha.
+      if (authNotifier.lastEvent == AuthChangeEvent.passwordRecovery) {
+        return '/reset-password';
+      }
 
-      if (!isAuth && !isLogin) return '/login';
-      if (isAuth  &&  isLogin) return '/';
+      final session = Supabase.instance.client.auth.currentSession;
+      final isAuth  = session != null;
+      final loc     = state.matchedLocation;
+
+      // /reset-password é sempre acessível (sessão temporária de recovery)
+      if (loc == '/reset-password') return null;
+
+      if (!isAuth && loc != '/login') return '/login';
+      if (isAuth  && loc == '/login') return '/';
       return null;
     },
     routes: [
@@ -48,9 +97,10 @@ GoRouter appRouter(AppRouterRef ref) {
         ],
       ),
       // Rotas fora do shell (sem bottom nav)
-      GoRoute(path: '/notifications', builder: (_, __) => const NotificationsPage()),
-      GoRoute(path: '/profile',       builder: (_, __) => const ProfilePage()),
-      GoRoute(path: '/login',         builder: (_, __) => const LoginPage()),
+      GoRoute(path: '/notifications',   builder: (_, __) => const NotificationsPage()),
+      GoRoute(path: '/profile',         builder: (_, __) => const ProfilePage()),
+      GoRoute(path: '/login',           builder: (_, __) => const LoginPage()),
+      GoRoute(path: '/reset-password',  builder: (_, __) => const ResetPasswordPage()),
     ],
   );
 }
