@@ -11,6 +11,7 @@ import '../../../categories/domain/entities/category.dart';
 import '../../../categories/presentation/providers/categories_provider.dart';
 import '../../../wallets/domain/entities/wallet.dart';
 import '../../../wallets/presentation/providers/wallets_provider.dart';
+import '../../../../main.dart' show hideValuesProvider;
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -61,6 +62,7 @@ class _BillsPageState extends ConsumerState<BillsPage>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hideValues = ref.watch(hideValuesProvider);
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -122,6 +124,18 @@ class _BillsPageState extends ConsumerState<BillsPage>
                               ],
                             ),
                           ),
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            hideValues
+                                ? Icons.visibility_off_rounded
+                                : Icons.visibility_rounded,
+                            size: 20,
+                          ),
+                          onPressed: () => ref
+                              .read(hideValuesProvider.notifier)
+                              .state = !hideValues,
+                          splashRadius: 20,
                         ),
                         IconButton(
                           icon: const Icon(Icons.chevron_right_rounded),
@@ -595,7 +609,7 @@ class _BillsListState extends ConsumerState<_BillsList> {
 
 // ─── Summary Bar ──────────────────────────────────────────────────────────────
 
-class _SummaryBar extends StatelessWidget {
+class _SummaryBar extends ConsumerWidget {
   final int count;
   final double amount;
   final BillStatus status;
@@ -609,7 +623,8 @@ class _SummaryBar extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hideValues = ref.watch(hideValuesProvider);
     final color = switch (status) {
       BillStatus.pending   => AppTheme.pendingColor,
       BillStatus.overdue   => AppTheme.errorColor,
@@ -641,9 +656,11 @@ class _SummaryBar extends StatelessWidget {
                     fontSize: 12, fontWeight: FontWeight.w600, color: color)),
           ),
           if (amount > 0)
-            Text(currFmt.format(amount),
-                style: TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w800, color: color)),
+            Text(
+              hideValues ? 'R\$ ••••' : currFmt.format(amount),
+              style: TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w800, color: color),
+            ),
         ],
       ),
     );
@@ -673,6 +690,7 @@ class BillCard extends ConsumerWidget {
     final color       = _statusColor(bill.status);
     final isDark      = Theme.of(context).brightness == Brightness.dark;
     final isPaid      = bill.status == BillStatus.paid;
+    final hideValues  = ref.watch(hideValuesProvider);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
@@ -780,7 +798,7 @@ class BillCard extends ConsumerWidget {
                             size: 18, color: AppTheme.errorColor),
                       )
                     : Text(
-                        currencyFmt.format(bill.amount),
+                        hideValues ? 'R\$ ••••' : currencyFmt.format(bill.amount),
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
@@ -1146,6 +1164,7 @@ class BillDetailsSheet extends ConsumerWidget {
     final actionState = ref.watch(billsNotifierProvider);
     final isDark      = Theme.of(context).brightness == Brightness.dark;
     final color       = _billColor(bill.status);
+    final hideValues  = ref.watch(hideValuesProvider);
 
     return DraggableScrollableSheet(
       expand: false,
@@ -1217,11 +1236,13 @@ class BillDetailsSheet extends ConsumerWidget {
                                 fontSize: 12,
                                 color: isDark ? Colors.white38 : Colors.grey)),
                         const SizedBox(height: 4),
-                        Text(currencyFmt.format(bill.amount),
-                            style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w900,
-                                color: color)),
+                        Text(
+                          hideValues ? 'R\$ ••••' : currencyFmt.format(bill.amount),
+                          style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w900,
+                              color: color),
+                        ),
                       ],
                     ),
                   ),

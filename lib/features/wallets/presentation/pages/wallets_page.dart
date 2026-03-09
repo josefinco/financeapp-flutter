@@ -7,6 +7,7 @@ import '../../domain/entities/wallet.dart';
 import '../providers/wallets_provider.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/app_feedback.dart';
+import '../../../../main.dart' show hideValuesProvider;
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -93,15 +94,38 @@ class _WalletsPageState extends ConsumerState<WalletsPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-                      child: Text(
-                        'Carteiras',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.5,
-                          color: isDark ? Colors.white : const Color(0xFF1B2B3A),
-                        ),
+                      padding: const EdgeInsets.fromLTRB(20, 12, 8, 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Carteiras',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.5,
+                                color: isDark ? Colors.white : const Color(0xFF1B2B3A),
+                              ),
+                            ),
+                          ),
+                          Consumer(
+                            builder: (context, ref, _) {
+                              final hide = ref.watch(hideValuesProvider);
+                              return IconButton(
+                                icon: Icon(
+                                  hide
+                                      ? Icons.visibility_off_rounded
+                                      : Icons.visibility_rounded,
+                                  size: 20,
+                                ),
+                                onPressed: () => ref
+                                    .read(hideValuesProvider.notifier)
+                                    .state = !hide,
+                                splashRadius: 20,
+                              );
+                            },
+                          ),
+                        ],
                       ),
                     ),
                     Divider(
@@ -250,7 +274,7 @@ class _EmptyState extends StatelessWidget {
 
 // ─── Total Card ───────────────────────────────────────────────────────────────
 
-class _TotalCard extends StatelessWidget {
+class _TotalCard extends ConsumerWidget {
   final double total;
   final NumberFormat currFmt;
   final bool isDark;
@@ -259,7 +283,8 @@ class _TotalCard extends StatelessWidget {
       {required this.total, required this.currFmt, required this.isDark});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hideValues = ref.watch(hideValuesProvider);
     final isPositive = total >= 0;
     return Container(
       padding: const EdgeInsets.all(20),
@@ -298,7 +323,7 @@ class _TotalCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            currFmt.format(total),
+            hideValues ? 'R\$ ••••' : currFmt.format(total),
             style: const TextStyle(
               color: Colors.white,
               fontSize: 28,
@@ -328,7 +353,7 @@ class _TotalCard extends StatelessWidget {
 
 // ─── Wallet Card ──────────────────────────────────────────────────────────────
 
-class _WalletCard extends StatelessWidget {
+class _WalletCard extends ConsumerWidget {
   final Wallet wallet;
   final bool isSelected;
   final NumberFormat currFmt;
@@ -346,7 +371,8 @@ class _WalletCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hideValues = ref.watch(hideValuesProvider);
     final color = _walletColor(wallet.type);
     final isNegative = wallet.balance < 0;
 
@@ -449,7 +475,9 @@ class _WalletCard extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Text(
-                              currFmt.format(wallet.balance),
+                              hideValues
+                                  ? 'R\$ ••••'
+                                  : currFmt.format(wallet.balance),
                               style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w800,
@@ -461,7 +489,7 @@ class _WalletCard extends StatelessWidget {
                                         : const Color(0xFF1B2B3A)),
                               ),
                             ),
-                            if (wallet.initialBalance != wallet.balance)
+                            if (!hideValues && wallet.initialBalance != wallet.balance)
                               Text(
                                 'Inicial: ${currFmt.format(wallet.initialBalance)}',
                                 style: TextStyle(

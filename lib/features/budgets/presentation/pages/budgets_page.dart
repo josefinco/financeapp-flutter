@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../../categories/presentation/providers/categories_provider.dart';
 import '../../domain/entities/budget.dart';
 import '../providers/budgets_provider.dart';
+import '../../../../main.dart' show hideValuesProvider;
 
 class BudgetsPage extends ConsumerStatefulWidget {
   const BudgetsPage({Key? key}) : super(key: key);
@@ -65,9 +66,24 @@ class _BudgetsPageState extends ConsumerState<BudgetsPage> {
       budgetsProvider(month: currentMonth, year: currentYear),
     );
 
+    final hideValues = ref.watch(hideValuesProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Orçamentos'),
+        actions: [
+          IconButton(
+            icon: Icon(
+              hideValues
+                  ? Icons.visibility_off_rounded
+                  : Icons.visibility_rounded,
+              size: 20,
+            ),
+            onPressed: () => ref
+                .read(hideValuesProvider.notifier)
+                .state = !hideValues,
+          ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: () async {
@@ -162,7 +178,9 @@ class _BudgetsPageState extends ConsumerState<BudgetsPage> {
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
-                                        'R\$ ${totalBudgeted.toStringAsFixed(2)}',
+                                        hideValues
+                                            ? 'R\$ ••••'
+                                            : 'R\$ ${totalBudgeted.toStringAsFixed(2)}',
                                         style: const TextStyle(
                                           fontSize: 18,
                                           fontWeight: FontWeight.bold,
@@ -182,7 +200,9 @@ class _BudgetsPageState extends ConsumerState<BudgetsPage> {
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
-                                        'R\$ ${totalSpent.toStringAsFixed(2)}',
+                                        hideValues
+                                            ? 'R\$ ••••'
+                                            : 'R\$ ${totalSpent.toStringAsFixed(2)}',
                                         style: const TextStyle(
                                           fontSize: 18,
                                           fontWeight: FontWeight.bold,
@@ -281,6 +301,7 @@ class _BudgetCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final hideValues = ref.watch(hideValuesProvider);
     final categoriesAsync = ref.watch(categoriesProvider());
 
     return categoriesAsync.when(
@@ -375,7 +396,9 @@ class _BudgetCard extends ConsumerWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'R\$ ${budget.amount.toStringAsFixed(2)}',
+                            hideValues
+                                ? 'R\$ ••••'
+                                : 'R\$ ${budget.amount.toStringAsFixed(2)}',
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -395,7 +418,9 @@ class _BudgetCard extends ConsumerWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'R\$ ${budget.spent.toStringAsFixed(2)}',
+                            hideValues
+                                ? 'R\$ ••••'
+                                : 'R\$ ${budget.spent.toStringAsFixed(2)}',
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
