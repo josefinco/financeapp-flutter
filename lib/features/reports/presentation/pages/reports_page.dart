@@ -12,6 +12,7 @@ import '../../../../core/network/dio_client.dart';
 import '../../../../core/widgets/app_feedback.dart';
 import '../../../bills/domain/entities/bill.dart';
 import '../../../bills/presentation/providers/bills_provider.dart';
+import '../../../../main.dart' show hideValuesProvider;
 
 // ─── Reports Page ─────────────────────────────────────────────────────────────
 
@@ -116,6 +117,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     final evolutionAsync = ref.watch(monthlyEvolutionProvider());
     final walletsAsync  = ref.watch(walletBalancesProvider);
     final upcomingAsync = ref.watch(upcomingBillsProvider(days: 7));
+    final hideValues    = ref.watch(hideValuesProvider);
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -198,6 +200,18 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                       ),
                     ),
                     IconButton(
+                      icon: Icon(
+                        ref.watch(hideValuesProvider)
+                            ? Icons.visibility_off_rounded
+                            : Icons.visibility_rounded,
+                        size: 20,
+                      ),
+                      onPressed: () => ref
+                          .read(hideValuesProvider.notifier)
+                          .state = !ref.read(hideValuesProvider),
+                      splashRadius: 20,
+                    ),
+                    IconButton(
                       icon: const Icon(Icons.chevron_right_rounded),
                       onPressed: _nextMonth,
                       splashRadius: 20,
@@ -226,7 +240,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
               summaryAsync.when(
                 loading: () => const _LoadingCard(),
                 error: (e, _) => _ErrorCard('Erro ao carregar resumo'),
-                data: (s) => _FinancialSummaryCard(summary: s, currFmt: _currFmt),
+                data: (s) => _FinancialSummaryCard(summary: s, currFmt: _currFmt, hideValues: hideValues),
               ),
               const SizedBox(height: 24),
 
@@ -246,7 +260,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
               upcomingAsync.when(
                 loading: () => const _LoadingCard(),
                 error: (e, _) => _ErrorCard('Erro ao carregar vencimentos'),
-                data: (bills) => _UpcomingBillsCard(bills: bills, currFmt: _currFmt),
+                data: (bills) => _UpcomingBillsCard(bills: bills, currFmt: _currFmt, hideValues: hideValues),
               ),
               const SizedBox(height: 24),
 
@@ -256,7 +270,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
               expensesAsync.when(
                 loading: () => const _LoadingCard(),
                 error: (e, _) => _ErrorCard('Erro ao carregar categorias'),
-                data: (r) => _CategoryExpensesCard(response: r, currFmt: _currFmt),
+                data: (r) => _CategoryExpensesCard(response: r, currFmt: _currFmt, hideValues: hideValues),
               ),
               const SizedBox(height: 24),
 
@@ -266,7 +280,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
               evolutionAsync.when(
                 loading: () => const _LoadingCard(),
                 error: (e, _) => _ErrorCard('Erro ao carregar evolução'),
-                data: (r) => _MonthlyEvolutionCard(months: r.months, currFmt: _currFmt),
+                data: (r) => _MonthlyEvolutionCard(months: r.months, currFmt: _currFmt, hideValues: hideValues),
               ),
               const SizedBox(height: 24),
 
@@ -276,7 +290,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
               walletsAsync.when(
                 loading: () => const _LoadingCard(),
                 error: (e, _) => _ErrorCard('Erro ao carregar carteiras'),
-                data: (r) => _WalletsCard(data: r, currFmt: _currFmt),
+                data: (r) => _WalletsCard(data: r, currFmt: _currFmt, hideValues: hideValues),
               ),
             ],
           ),
@@ -344,7 +358,8 @@ class _BaseCard extends StatelessWidget {
 class _FinancialSummaryCard extends StatelessWidget {
   final MonthlySummary summary;
   final NumberFormat currFmt;
-  const _FinancialSummaryCard({required this.summary, required this.currFmt});
+  final bool hideValues;
+  const _FinancialSummaryCard({required this.summary, required this.currFmt, this.hideValues = false});
 
   @override
   Widget build(BuildContext context) {
@@ -365,7 +380,7 @@ class _FinancialSummaryCard extends StatelessWidget {
                 icon: Icons.arrow_downward_rounded,
                 iconColor: AppTheme.incomeColor,
                 label: 'Receitas',
-                value: currFmt.format(summary.totalIncome),
+                value: hideValues ? 'R\$ ••••' : currFmt.format(summary.totalIncome),
                 valueColor: AppTheme.incomeColor,
               ),
               const SizedBox(width: 12),
@@ -373,7 +388,7 @@ class _FinancialSummaryCard extends StatelessWidget {
                 icon: Icons.arrow_upward_rounded,
                 iconColor: AppTheme.errorColor,
                 label: 'Despesas',
-                value: currFmt.format(summary.totalExpense),
+                value: hideValues ? 'R\$ ••••' : currFmt.format(summary.totalExpense),
                 valueColor: AppTheme.errorColor,
               ),
             ],
@@ -388,7 +403,7 @@ class _FinancialSummaryCard extends StatelessWidget {
                     : Icons.trending_down_rounded,
                 iconColor: balancePositive ? AppTheme.incomeColor : AppTheme.errorColor,
                 label: 'Saldo',
-                value: currFmt.format(summary.balance),
+                value: hideValues ? 'R\$ ••••' : currFmt.format(summary.balance),
                 valueColor: balancePositive ? AppTheme.incomeColor : AppTheme.errorColor,
               ),
               const SizedBox(width: 12),
@@ -637,7 +652,8 @@ class _BillsStatusTile extends StatelessWidget {
 class _UpcomingBillsCard extends StatelessWidget {
   final List bills;
   final NumberFormat currFmt;
-  const _UpcomingBillsCard({required this.bills, required this.currFmt});
+  final bool hideValues;
+  const _UpcomingBillsCard({required this.bills, required this.currFmt, this.hideValues = false});
 
   @override
   Widget build(BuildContext context) {
@@ -700,11 +716,13 @@ class _UpcomingBillsCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis),
                   ),
-                  Text(currFmt.format(bill.amount),
-                      style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                          color: AppTheme.pendingColor)),
+                  Text(
+                    hideValues ? 'R\$ ••••' : currFmt.format(bill.amount),
+                    style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                        color: AppTheme.pendingColor),
+                  ),
                 ],
               ),
             ),
@@ -720,7 +738,8 @@ class _UpcomingBillsCard extends StatelessWidget {
 class _CategoryExpensesCard extends StatelessWidget {
   final ExpenseByCategoryResponse response;
   final NumberFormat currFmt;
-  const _CategoryExpensesCard({required this.response, required this.currFmt});
+  final bool hideValues;
+  const _CategoryExpensesCard({required this.response, required this.currFmt, this.hideValues = false});
 
   @override
   Widget build(BuildContext context) {
@@ -830,11 +849,13 @@ class _CategoryExpensesCard extends StatelessWidget {
                             style: const TextStyle(
                                 fontSize: 12, fontWeight: FontWeight.w600)),
                       ]),
-                      Text(currFmt.format(cat.amount),
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: color)),
+                      Text(
+                        hideValues ? 'R\$ ••••' : currFmt.format(cat.amount),
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: color),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 4),
@@ -868,7 +889,8 @@ class _CategoryExpensesCard extends StatelessWidget {
 class _MonthlyEvolutionCard extends StatelessWidget {
   final List<MonthlySummary> months;
   final NumberFormat currFmt;
-  const _MonthlyEvolutionCard({required this.months, required this.currFmt});
+  final bool hideValues;
+  const _MonthlyEvolutionCard({required this.months, required this.currFmt, this.hideValues = false});
 
   @override
   Widget build(BuildContext context) {
@@ -968,8 +990,9 @@ class _MonthlyEvolutionCard extends StatelessWidget {
                   touchTooltipData: BarTouchTooltipData(
                     getTooltipItem: (group, groupIndex, rod, rodIndex) {
                       final label = rodIndex == 0 ? 'Receita' : 'Despesa';
+                      final valueStr = hideValues ? 'R\$ ••••' : currFmt.format(rod.toY);
                       return BarTooltipItem(
-                        '$label\n${currFmt.format(rod.toY)}',
+                        '$label\n$valueStr',
                         TextStyle(
                           color: rod.color,
                           fontWeight: FontWeight.w700,
@@ -1019,7 +1042,8 @@ class _LegendDot extends StatelessWidget {
 class _WalletsCard extends StatelessWidget {
   final WalletBalancesData data;
   final NumberFormat currFmt;
-  const _WalletsCard({required this.data, required this.currFmt});
+  final bool hideValues;
+  const _WalletsCard({required this.data, required this.currFmt, this.hideValues = false});
 
   @override
   Widget build(BuildContext context) {
@@ -1047,13 +1071,15 @@ class _WalletsCard extends StatelessWidget {
                     style: TextStyle(
                         fontSize: 12,
                         color: isDark ? Colors.white38 : Colors.grey)),
-                Text(currFmt.format(data.totalBalance),
-                    style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        color: data.totalBalance >= 0
-                            ? AppTheme.incomeColor
-                            : AppTheme.errorColor)),
+                Text(
+                  hideValues ? 'R\$ ••••' : currFmt.format(data.totalBalance),
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      color: data.totalBalance >= 0
+                          ? AppTheme.incomeColor
+                          : AppTheme.errorColor),
+                ),
               ],
             ),
           ),
@@ -1098,13 +1124,15 @@ class _WalletsCard extends StatelessWidget {
                           style: const TextStyle(
                               fontWeight: FontWeight.w600, fontSize: 13)),
                     ),
-                    Text(currFmt.format(wallet.balance),
-                        style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 14,
-                            color: wallet.balance >= 0
-                                ? AppTheme.incomeColor
-                                : AppTheme.errorColor)),
+                    Text(
+                      hideValues ? 'R\$ ••••' : currFmt.format(wallet.balance),
+                      style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                          color: wallet.balance >= 0
+                              ? AppTheme.incomeColor
+                              : AppTheme.errorColor),
+                    ),
                   ],
                 ),
               ),

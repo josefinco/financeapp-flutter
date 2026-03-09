@@ -9,6 +9,7 @@ import '../../../bills/domain/entities/bill.dart';
 import '../../../bills/presentation/providers/bills_provider.dart';
 import '../../../bills/presentation/pages/bills_page.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../main.dart' show hideValuesProvider;
 
 class DashboardPage extends ConsumerWidget {
   const DashboardPage({super.key});
@@ -39,6 +40,7 @@ class DashboardPage extends ConsumerWidget {
     ));
 
     final upcomingAsync = ref.watch(upcomingBillsProvider(days: 7));
+    final hideValues = ref.watch(hideValuesProvider);
     final currencyFmt = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
     final monthName = _cap(DateFormat('MMMM', 'pt_BR').format(now));
 
@@ -62,6 +64,7 @@ class DashboardPage extends ConsumerWidget {
                 monthName: monthName,
                 firstName: firstName,
                 now: now,
+                hideValues: hideValues,
               ),
             ),
 
@@ -76,6 +79,7 @@ class DashboardPage extends ConsumerWidget {
                   currencyFmt: currencyFmt,
                   monthName: monthName,
                   now: now,
+                  hideValues: hideValues,
                 ),
               ),
             ),
@@ -193,6 +197,7 @@ class _HeroSection extends ConsumerWidget {
   final String monthName;
   final String firstName;
   final DateTime now;
+  final bool hideValues;
 
   const _HeroSection({
     required this.pendingAsync,
@@ -202,6 +207,7 @@ class _HeroSection extends ConsumerWidget {
     required this.monthName,
     required this.firstName,
     required this.now,
+    required this.hideValues,
   });
 
   @override
@@ -312,6 +318,15 @@ class _HeroSection extends ConsumerWidget {
                   ),
                   // Action buttons
                   _GlassButton(
+                    icon: hideValues
+                        ? Icons.visibility_off_rounded
+                        : Icons.visibility_rounded,
+                    onTap: () => ref
+                        .read(hideValuesProvider.notifier)
+                        .state = !hideValues,
+                  ),
+                  const SizedBox(width: 10),
+                  _GlassButton(
                       icon: Icons.notifications_outlined,
                       onTap: () => context.push('/notifications')),
                   const SizedBox(width: 10),
@@ -388,7 +403,7 @@ class _HeroSection extends ConsumerWidget {
                       ),
                     )
                   : Text(
-                      currencyFmt.format(totalUnpaid),
+                      hideValues ? 'R\$ ••••' : currencyFmt.format(totalUnpaid),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 36,
@@ -454,6 +469,7 @@ class _HeroSection extends ConsumerWidget {
                       currencyFmt: currencyFmt,
                       isLoading: pendingAsync.isLoading,
                       onTap: () => context.go('/bills'),
+                      hideValues: hideValues,
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -469,6 +485,7 @@ class _HeroSection extends ConsumerWidget {
                       isLoading: overdueAsync.isLoading,
                       urgent: overdueCount > 0,
                       onTap: () => context.go('/bills'),
+                      hideValues: hideValues,
                     ),
                   ),
                 ],
@@ -483,6 +500,7 @@ class _HeroSection extends ConsumerWidget {
                 currencyFmt: currencyFmt,
                 isLoading: paidAsync.isLoading,
                 onTap: () => context.go('/bills'),
+                hideValues: hideValues,
               ),
             ],
           ),
@@ -505,6 +523,7 @@ class _BillStatusCard extends StatelessWidget {
   final bool isLoading;
   final bool urgent;
   final VoidCallback onTap;
+  final bool hideValues;
 
   const _BillStatusCard({
     required this.label,
@@ -517,6 +536,7 @@ class _BillStatusCard extends StatelessWidget {
     required this.isLoading,
     required this.onTap,
     this.urgent = false,
+    this.hideValues = false,
   });
 
   @override
@@ -593,7 +613,9 @@ class _BillStatusCard extends StatelessWidget {
                   const SizedBox(height: 10),
                   // Amount
                   Text(
-                    count == 0 ? 'R\$ 0,00' : currencyFmt.format(amount),
+                    hideValues
+                        ? 'R\$ ••••'
+                        : (count == 0 ? 'R\$ 0,00' : currencyFmt.format(amount)),
                     style: TextStyle(
                       color: count == 0
                           ? Colors.white.withOpacity(0.35)
@@ -642,6 +664,7 @@ class _MonthProgressCard extends StatelessWidget {
   final NumberFormat currencyFmt;
   final String monthName;
   final DateTime now;
+  final bool hideValues;
 
   const _MonthProgressCard({
     required this.pendingAsync,
@@ -650,6 +673,7 @@ class _MonthProgressCard extends StatelessWidget {
     required this.currencyFmt,
     required this.monthName,
     required this.now,
+    this.hideValues = false,
   });
 
   @override
@@ -782,7 +806,9 @@ class _MonthProgressCard extends StatelessWidget {
                     Expanded(
                       child: _ProgressStat(
                         label: 'Pago',
-                        value: currencyFmt.format(paidAmount),
+                        value: hideValues
+                            ? 'R\$ ••••'
+                            : currencyFmt.format(paidAmount),
                         color: AppTheme.incomeColor,
                         icon: Icons.check_rounded,
                         isDark: isDark,
@@ -799,10 +825,12 @@ class _MonthProgressCard extends StatelessWidget {
                     Expanded(
                       child: _ProgressStat(
                         label: 'Em aberto',
-                        value: currencyFmt.format(
-                          (pendingBills.fold(0.0, (s, b) => s + b.amount)) +
-                              (overdueBills.fold(0.0, (s, b) => s + b.amount)),
-                        ),
+                        value: hideValues
+                            ? 'R\$ ••••'
+                            : currencyFmt.format(
+                                (pendingBills.fold(0.0, (s, b) => s + b.amount)) +
+                                    (overdueBills.fold(0.0, (s, b) => s + b.amount)),
+                              ),
                         color: pendingBills.isEmpty && overdueBills.isEmpty
                             ? AppTheme.incomeColor
                             : AppTheme.pendingColor,
@@ -896,6 +924,7 @@ class _PaidCard extends StatelessWidget {
   final NumberFormat currencyFmt;
   final bool isLoading;
   final VoidCallback onTap;
+  final bool hideValues;
 
   const _PaidCard({
     required this.count,
@@ -903,6 +932,7 @@ class _PaidCard extends StatelessWidget {
     required this.currencyFmt,
     required this.isLoading,
     required this.onTap,
+    this.hideValues = false,
   });
 
   @override
@@ -974,7 +1004,9 @@ class _PaidCard extends StatelessWidget {
                   ),
                   // Amount
                   Text(
-                    count == 0 ? 'R\$ 0,00' : currencyFmt.format(amount),
+                    hideValues
+                        ? 'R\$ ••••'
+                        : (count == 0 ? 'R\$ 0,00' : currencyFmt.format(amount)),
                     style: TextStyle(
                       color: count == 0
                           ? Colors.white.withOpacity(0.3)

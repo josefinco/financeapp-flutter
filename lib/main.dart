@@ -23,6 +23,10 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 /// Global theme mode provider — toggled from the profile screen.
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.system);
 
+/// Hides all monetary values across the app when true.
+/// Toggled from any screen that displays financial data.
+final hideValuesProvider = StateProvider<bool>((ref) => false);
+
 /// Whether backend services (Supabase/Firebase) are available.
 bool isBackendAvailable = false;
 

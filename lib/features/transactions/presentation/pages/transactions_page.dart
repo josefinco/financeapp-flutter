@@ -9,6 +9,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/app_feedback.dart';
 import '../../../categories/presentation/providers/categories_provider.dart';
 import '../../../reports/presentation/providers/reports_provider.dart';
+import '../../../../main.dart' show hideValuesProvider;
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -129,6 +130,18 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
                           ],
                         ),
                       ),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        ref.watch(hideValuesProvider)
+                            ? Icons.visibility_off_rounded
+                            : Icons.visibility_rounded,
+                        size: 20,
+                      ),
+                      onPressed: () => ref
+                          .read(hideValuesProvider.notifier)
+                          .state = !ref.read(hideValuesProvider),
+                      splashRadius: 20,
                     ),
                     IconButton(
                       icon: const Icon(Icons.chevron_right_rounded),
@@ -383,7 +396,7 @@ class _DateHeader extends StatelessWidget {
 
 // ─── Summary Cards ────────────────────────────────────────────────────────────
 
-class _SummaryCards extends StatelessWidget {
+class _SummaryCards extends ConsumerWidget {
   final double totalIncome;
   final double totalExpense;
   final NumberFormat currFmt;
@@ -395,15 +408,17 @@ class _SummaryCards extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hideValues = ref.watch(hideValuesProvider);
     final balance = totalIncome - totalExpense;
+    final masked = 'R\$ ••••';
 
     return Row(
       children: [
         _SummaryTile(
           label: 'Receitas',
-          amount: currFmt.format(totalIncome),
+          amount: hideValues ? masked : currFmt.format(totalIncome),
           icon: Icons.arrow_downward_rounded,
           color: AppTheme.incomeColor,
           isDark: isDark,
@@ -411,7 +426,7 @@ class _SummaryCards extends StatelessWidget {
         const SizedBox(width: 10),
         _SummaryTile(
           label: 'Despesas',
-          amount: currFmt.format(totalExpense),
+          amount: hideValues ? masked : currFmt.format(totalExpense),
           icon: Icons.arrow_upward_rounded,
           color: AppTheme.expenseColor,
           isDark: isDark,
@@ -419,7 +434,7 @@ class _SummaryCards extends StatelessWidget {
         const SizedBox(width: 10),
         _SummaryTile(
           label: 'Saldo',
-          amount: currFmt.format(balance),
+          amount: hideValues ? masked : currFmt.format(balance),
           icon: balance >= 0
               ? Icons.trending_up_rounded
               : Icons.trending_down_rounded,
@@ -503,7 +518,7 @@ class _SummaryTile extends StatelessWidget {
 
 // ─── Transaction Card ─────────────────────────────────────────────────────────
 
-class _TransactionCard extends StatelessWidget {
+class _TransactionCard extends ConsumerWidget {
   final Transaction transaction;
   final NumberFormat currFmt;
   final VoidCallback? onTap;
@@ -515,10 +530,11 @@ class _TransactionCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final color = _typeColor(transaction.type);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final prefix = transaction.type == TransactionType.income ? '+' : '−';
+    final hideValues = ref.watch(hideValuesProvider);
 
     return Material(
       color: Colors.transparent,
@@ -576,7 +592,9 @@ class _TransactionCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 // Amount
                 Text(
-                  '$prefix ${currFmt.format(transaction.amount)}',
+                  hideValues
+                      ? 'R\$ ••••'
+                      : '$prefix ${currFmt.format(transaction.amount)}',
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
